@@ -19,6 +19,7 @@ const initialTelemetry: GateTelemetry = {
   steerX: 0,
   steerY: 0,
   steering: false,
+  report: null,
 };
 
 export default function GravityCourierGate({ onExit }: Props) {
@@ -114,7 +115,38 @@ export default function GravityCourierGate({ onExit }: Props) {
       )}
 
       {telemetry.phase === "complete" && (
-        <div className="courier-state complete"><p>RELAY REACHED</p><h2>Transmission delivered.</h2><div><span>Final score</span><strong>{telemetry.score.toLocaleString("en-US")}</strong></div><button onClick={() => runtimeRef.current?.restart()}>Fly again</button><button className="secondary" onClick={onExit}>Return to arcade</button></div>
+        <div className="courier-state complete">
+          <p>RELAY REACHED</p>
+          <h2>Transmission delivered.</h2>
+          <div className="courier-result-score"><span>Final score</span><strong>{telemetry.score.toLocaleString("en-US")}</strong></div>
+          {telemetry.report && (
+            <section className="courier-review-report" aria-label="Visual gate performance report">
+              <header><strong>RUN EVIDENCE</strong><span>RUN {telemetry.report.runNumber.toString().padStart(2, "0")} · {telemetry.report.sampleCount} SAMPLES</span></header>
+              <div className="courier-review-grid">
+                {[
+                  ["AVERAGE", `${telemetry.report.averageFps} FPS`],
+                  ["1% LOW", `${telemetry.report.onePercentLowFps} FPS`],
+                  ["P95 FRAME", `${telemetry.report.p95FrameMs} MS`],
+                  ["P99 FRAME", `${telemetry.report.p99FrameMs} MS`],
+                  [">33 MS", `${telemetry.report.slowFramePercent}%`],
+                  ["RENDER", `${telemetry.report.renderWidth}×${telemetry.report.renderHeight}`],
+                ].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}
+              </div>
+              <footer>
+                <span>{telemetry.report.quality.toUpperCase()} TIER</span>
+                <span>{telemetry.report.browser}</span>
+                <span>{telemetry.report.platform}</span>
+                <span>{telemetry.report.viewportWidth}×{telemetry.report.viewportHeight} VIEWPORT</span>
+                <span>DPR {telemetry.report.devicePixelRatio}</span>
+                <span>{telemetry.report.hardwareConcurrency || "?"} THREADS</span>
+                {telemetry.report.deviceMemoryGb !== null && <span>{telemetry.report.deviceMemoryGb} GB MEMORY</span>}
+                {telemetry.report.reducedMotion && <span>REDUCED MOTION</span>}
+              </footer>
+            </section>
+          )}
+          <button onClick={() => runtimeRef.current?.restart()}>Fly again</button>
+          <button className="secondary" onClick={onExit}>Return to arcade</button>
+        </div>
       )}
 
       {error && (
