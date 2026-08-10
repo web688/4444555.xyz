@@ -8,6 +8,7 @@ export type Game = {
   mode: "visual-gate" | "concept";
   accent: string;
   tags: string[];
+  playable?: boolean;
 };
 
 export const games: Game[] = [
@@ -20,7 +21,8 @@ export const games: Game[] = [
     session: "2–4 min",
     mode: "visual-gate",
     accent: "amber",
-    tags: ["3D", "Skill", "Daily route"]
+    tags: ["3D", "Skill", "Visual gate"],
+    playable: true
   },
   {
     slug: "echo-vector",

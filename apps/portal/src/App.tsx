@@ -1,10 +1,12 @@
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { games } from "./catalog";
 
 const Arrow = () => <span aria-hidden="true">↗</span>;
+const GravityCourierGate = lazy(() => import("./games/gravity-courier/GravityCourierGate"));
 
 export function App() {
   const [query, setQuery] = useState("");
+  const [activeGame, setActiveGame] = useState<string | null>(null);
   const visibleGames = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return games;
@@ -50,7 +52,7 @@ export function App() {
             <div className="planet"><div className="planet-shine" /><div className="planet-shadow" /></div>
             <div className="courier"><span className="wing left" /><span className="core" /><span className="wing right" /><span className="trail" /></div>
             <div className="signal signal-a" /><div className="signal signal-b" /><div className="signal signal-c" />
-            <div className="stage-label"><small>Incoming transmission</small><strong>GRAVITY COURIER</strong><span>Visual prototype queued</span></div>
+            <div className="stage-label"><small>Incoming transmission</small><strong>GRAVITY COURIER</strong><span>Interactive visual gate online</span></div>
             <div className="coordinates">45° 07′ 12″ N<br />ORBITAL LANE / 04</div>
           </div>
         </section>
@@ -63,11 +65,11 @@ export function App() {
           <div className="game-grid" aria-live="polite">
             {visibleGames.map((game, index) => (
               <article className={`game-card ${game.accent}`} key={game.slug}>
-                <div className="card-art" aria-hidden="true"><div className="art-grid" /><div className="art-object" /><span className="card-number">0{index + 1}</span><span className="status">{game.mode === "visual-gate" ? "In visual gate" : "In concept"}</span></div>
+                <div className="card-art" aria-hidden="true"><div className="art-grid" /><div className="art-object" /><span className="card-number">0{index + 1}</span><span className="status">{game.playable ? "Playable visual gate" : game.mode === "visual-gate" ? "In visual gate" : "In concept"}</span></div>
                 <div className="card-body">
                   <p className="card-eyebrow">{game.eyebrow}</p><h3>{game.title}</h3><p>{game.description}</p>
                   <div className="tag-row">{game.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
-                  <footer><span>{game.genre}</span><span>{game.session}</span><button aria-label={`View ${game.title} concept`} disabled><Arrow /></button></footer>
+                  <footer><span>{game.genre}</span><span>{game.session}</span><button aria-label={game.playable ? `Launch ${game.title} visual gate` : `View ${game.title} concept`} disabled={!game.playable} onClick={() => game.playable && setActiveGame(game.slug)}><Arrow /></button></footer>
                 </div>
               </article>
             ))}
@@ -92,6 +94,11 @@ export function App() {
         </section>
       </main>
       <footer className="site-footer"><a className="brand" href="#top"><span className="brand-mark">44</span><span>44555</span></a><p>Foundation 0.1 · Built to add worlds without rebuilding the universe.</p><span>© 2026</span></footer>
+      {activeGame === "gravity-courier" && (
+        <Suspense fallback={<div className="gate-loading" role="status"><span />Loading orbital lane…</div>}>
+          <GravityCourierGate onExit={() => setActiveGame(null)} />
+        </Suspense>
+      )}
     </div>
   );
 }
