@@ -83,3 +83,10 @@ Automatic downgrading is a safety net, not performance approval. Physical-device
 - removes the near-white emissive base that was being added over every pixel of the backdrop texture;
 - preserves the generated deep-space texture as the dome's only emissive contribution;
 - restores black space, star colour and nebula contrast without changing the accepted direct controls.
+
+## Candidate 0.9 hazard-visibility pass
+
+- corrects the owner-reported failure where distant hazard bodies disappeared against black space and only their orange warning strips remained visible;
+- replaces the near-black, 95%-metallic obstacle surface with a lighter cool gunmetal that receives the existing ambient and key lighting;
+- reduces metallic response and increases roughness so the complete obstacle silhouette remains readable before close approach;
+- preserves orange strictly as the warning accent and leaves the accepted background and direct controls unchanged.
