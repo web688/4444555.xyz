@@ -1,0 +1,97 @@
+import { useMemo, useState } from "react";
+import { games } from "./catalog";
+
+const Arrow = () => <span aria-hidden="true">↗</span>;
+
+export function App() {
+  const [query, setQuery] = useState("");
+  const visibleGames = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return games;
+    return games.filter((game) =>
+      [game.title, game.description, game.genre, ...game.tags].join(" ").toLowerCase().includes(needle)
+    );
+  }, [query]);
+
+  return (
+    <div className="site-shell">
+      <header className="topbar">
+        <a className="brand" href="#top" aria-label="4444555 home">
+          <span className="brand-mark">44</span><span>44555</span>
+        </a>
+        <nav aria-label="Primary navigation">
+          <a href="#games">Games</a><a href="#gate">Visual gate</a><a href="#foundation">Foundation</a>
+        </nav>
+        <button className="profile-button" disabled title="Accounts arrive in the backend phase">
+          <span className="presence" /> Player profile <span className="soon">Soon</span>
+        </button>
+      </header>
+
+      <main id="top">
+        <section className="hero">
+          <div className="hero-copy">
+            <p className="kicker"><span /> A new browser arcade is entering orbit</p>
+            <h1>Short sessions.<br /><em>Serious worlds.</em></h1>
+            <p className="hero-lede">Original, mastery-driven games built for the browser—with cinematic art direction, tactile controls, and scores worth chasing.</p>
+            <div className="hero-actions">
+              <a className="primary-action" href="#games">Explore the lineup <Arrow /></a>
+              <a className="text-action" href="#gate">See how quality is proven</a>
+            </div>
+            <dl className="hero-facts">
+              <div><dt>01</dt><dd>Visual gate<br />before production</dd></div>
+              <div><dt>03</dt><dd>Launch-ready<br />game directions</dd></div>
+              <div><dt>15 MB</dt><dd>First-load target<br />for the 3D slice</dd></div>
+            </dl>
+          </div>
+
+          <div className="orbit-stage" aria-label="Abstract visualization of the Gravity Courier world">
+            <div className="ambient ambient-one" /><div className="ambient ambient-two" />
+            <div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="orbit orbit-three" />
+            <div className="planet"><div className="planet-shine" /><div className="planet-shadow" /></div>
+            <div className="courier"><span className="wing left" /><span className="core" /><span className="wing right" /><span className="trail" /></div>
+            <div className="signal signal-a" /><div className="signal signal-b" /><div className="signal signal-c" />
+            <div className="stage-label"><small>Incoming transmission</small><strong>GRAVITY COURIER</strong><span>Visual prototype queued</span></div>
+            <div className="coordinates">45° 07′ 12″ N<br />ORBITAL LANE / 04</div>
+          </div>
+        </section>
+
+        <section className="catalog section" id="games">
+          <div className="section-heading">
+            <div><p className="section-index">01 / DISCOVER</p><h2>Choose your next obsession.</h2></div>
+            <label className="search"><span aria-hidden="true">⌕</span><span className="sr-only">Search games</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search worlds, genres, skills…" /></label>
+          </div>
+          <div className="game-grid" aria-live="polite">
+            {visibleGames.map((game, index) => (
+              <article className={`game-card ${game.accent}`} key={game.slug}>
+                <div className="card-art" aria-hidden="true"><div className="art-grid" /><div className="art-object" /><span className="card-number">0{index + 1}</span><span className="status">{game.mode === "visual-gate" ? "In visual gate" : "In concept"}</span></div>
+                <div className="card-body">
+                  <p className="card-eyebrow">{game.eyebrow}</p><h3>{game.title}</h3><p>{game.description}</p>
+                  <div className="tag-row">{game.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
+                  <footer><span>{game.genre}</span><span>{game.session}</span><button aria-label={`View ${game.title} concept`} disabled><Arrow /></button></footer>
+                </div>
+              </article>
+            ))}
+          </div>
+          {visibleGames.length === 0 && <p className="empty-state">No signal found. Try a different search.</p>}
+        </section>
+
+        <section className="gate section" id="gate">
+          <div className="gate-copy"><p className="section-index">02 / QUALITY STANDARD</p><h2>Proof before promise.</h2><p>Matching a high-end motion reference is possible only if we prove the hardest part early. Gate 01 is a small Babylon.js scene—not a whole game—measured on real desktop and mobile hardware.</p><a className="text-action light" href="#foundation">Inspect the platform boundary <Arrow /></a></div>
+          <ol className="gate-list">
+            <li><span>01</span><div><strong>One hero environment</strong><p>Volumetric atmosphere, physically based materials, composed lighting, and readable silhouette.</p></div><b>Visual</b></li>
+            <li><span>02</span><div><strong>One complete play beat</strong><p>Launch, precision dodge, near miss, score burst, damage response, and a clean reset.</p></div><b>Feel</b></li>
+            <li><span>03</span><div><strong>Two performance classes</strong><p>A rich desktop tier and a graceful mobile tier, both under explicit load and frame budgets.</p></div><b>Proof</b></li>
+          </ol>
+        </section>
+
+        <section className="foundation section" id="foundation">
+          <div className="section-heading"><div><p className="section-index">03 / PLATFORM</p><h2>Every game, one language.</h2></div><p>The portal owns identity, persistence, trust, and progression. Each game stays free to choose the engine that makes it excellent.</p></div>
+          <div className="contract-grid">
+            {[["LIFECYCLE","Mount, ready, pause, resume, exit and teardown."],["PLAYER","Identity and settings arrive through a narrow host context."],["PROGRESS","Scores, achievements, saves and stats use versioned claims."],["TRUST","Run tickets and replay evidence prepare server-side validation."]].map(([label, copy]) => <div className="contract" key={label}><span>{label}</span><p>{copy}</p></div>)}
+          </div>
+        </section>
+      </main>
+      <footer className="site-footer"><a className="brand" href="#top"><span className="brand-mark">44</span><span>44555</span></a><p>Foundation 0.1 · Built to add worlds without rebuilding the universe.</p><span>© 2026</span></footer>
+    </div>
+  );
+}
