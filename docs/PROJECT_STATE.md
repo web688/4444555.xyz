@@ -1,6 +1,6 @@
 # Project state — 4444555 Arcade
 
-Updated: 2026-08-10, after preparing Gravity Courier 0.9 to correct owner-reported obstacle visibility.
+Updated: 2026-08-10, after owner acceptance of candidate 0.9 obstacle visibility and preparation of candidate 0.10 evidence capture.
 
 This is the durable handoff for continuing the project in a new conversation. Repository state is authoritative when it is newer than this document.
 
@@ -29,7 +29,7 @@ The platform must make it straightforward to add games and later show player sco
   - Gravity Courier — playable visual candidate.
   - Echo Vector — concept.
   - Prism Siege — concept.
-- Gravity Courier manifest: candidate `0.9.0`, status `visual-gate`.
+- Gravity Courier manifest: candidate `0.10.0`, status `visual-gate`.
 - Source: `apps/portal/src/games/gravity-courier/`.
 - Manifest: `catalog/manifests/gravity-courier.json`.
 - Quality evidence: `docs/VISUAL_FEASIBILITY_GATE.md` and `docs/VISUAL_REVIEW.md`.
@@ -68,17 +68,23 @@ Candidate 0.7 introduced the richer background but accidentally added a near-whi
 
 On 2026-08-10 the owner reported that the gray obstacle bodies could be seen only at very close range. A supplied live-site screenshot confirmed that the left-side obstacle bodies disappeared against black space, while the right-side obstacle was readable mainly as a silhouette against the orange planet. This is a visibility defect, not an intended feature.
 
-Candidate 0.9 replaces the near-black, 95%-metallic hazard material with lighter cool gunmetal at 48% metallic and higher roughness so it receives the existing lighting and retains a complete silhouette at distance. Orange remains the warning accent. The accepted background and controls are unchanged. Owner review of the deployed 0.9 correction is pending.
+Candidate 0.9 replaces the near-black, 95%-metallic hazard material with lighter cool gunmetal at 48% metallic and higher roughness so it receives the existing lighting and retains a complete silhouette at distance. Orange remains the warning accent. The accepted background and controls are unchanged. The owner reviewed the deployed correction and accepted it as “much better” on 2026-08-10.
 
 ## Repository state at this handoff
 
-- Integration baseline before candidate 0.9: `main@477ff3fb438d384cf95d125987f318ce569c4d37`.
-- PRs #1 through #11 were merged before the candidate 0.9 change.
+- Integration baseline before candidate 0.10: `main@08edeba66af14e9c8a0cfb476715522bc9fae4eb`.
+- PRs #1 through #12 were merged before the candidate 0.10 change.
 - No open pull requests or issues existed at inspection time.
 - The latest PR verification completed successfully.
-- Candidate 0.9 synchronizes the source, manifest, root Pages fallback assets, documentation, and regression checks.
+- Candidate 0.10 adds local end-of-run performance evidence while preserving the accepted scene and synchronizes source, manifest, fallback assets, documentation and regression checks.
 
 This handoff change itself will be newer than the gameplay baseline above. Future conversations must inspect recent GitHub history rather than assuming this SHA is still the repository head.
+
+## Candidate 0.10 evidence capture
+
+Candidate 0.10 automatically samples active-route frame times after a one-second warmup and displays a screenshot-ready end-of-run report. It includes average FPS, one-percent-low FPS, P95/P99 frame time, frames slower than 33 ms, render resolution, viewport, DPR, quality tier, browser/platform, logical processors, reported device memory and reduced-motion status. The report remains local and resets on every run.
+
+This instrumentation is the next formal gate step; it does not change gameplay or claim that desktop/mobile performance has passed.
 
 ## Visual gate status
 
@@ -106,4 +112,4 @@ Do not silently promote Gravity Courier into full production or mark the visual 
 
 ## What happens next
 
-First ask the owner to review distant obstacle readability in deployed candidate 0.9, especially hazards on the left against black space. If accepted, continue the formal desktop/mobile visual-gate review. Preserve the accepted controls and background unless new feedback specifically requires a change.
+After candidate 0.10 deploys, the owner should complete one desktop route and one mobile route and provide screenshots of the end-of-run evidence reports. Record the named device/browser results in `docs/VISUAL_REVIEW.md`, then address any failed gate dimension or authorize the next production phase. Preserve the accepted controls, background and obstacle treatment.
