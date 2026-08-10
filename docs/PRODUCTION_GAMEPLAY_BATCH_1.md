@@ -1,0 +1,46 @@
+# Gravity Courier — Production Gameplay Batch 1
+
+Version: `0.12.0`  
+Status: implemented production prototype
+
+## Frozen run contract
+
+- Duration: 120 seconds.
+- Structure: four 30-second sectors.
+- Route: deterministic UTC daily seed; retry repeats the same route.
+- Difficulty: sector-based cruise speed, obstacle rotation, and obstacle spacing escalation.
+- Failure: three hull points; zero hull ends the run immediately.
+- Scoring: flight score multiplied by the current near-miss chain; collision resets the chain and removes 650 points.
+- Chain: near misses increase the multiplier to a maximum of ×12.
+- Completion: surviving to the relay records a delivery.
+
+## Medals
+
+| Medal | Requirement |
+| --- | --- |
+| Bronze | Complete the route. |
+| Silver | Complete with at least 18,000 points. |
+| Gold | Complete with at least 32,000 points and at least two hull remaining. |
+
+Failed runs receive no medal but remain in recent history.
+
+## Run result and persistence
+
+Every completed or failed attempt records score, route date, duration, hull, sector reached, near misses, collisions, maximum multiplier, outcome, and medal.
+
+The portal stores only anonymous device-local progress: best score, total runs, deliveries, and the eight newest results. Storage failure must never prevent gameplay. Accounts, global ranking, trusted claims, and cross-device sync are out of scope.
+
+## Locked baseline
+
+Production work preserves the accepted procedural background, crisp rendering, readable cool-gunmetal hazards with orange accents, direct controls, reduced foreground speed particles, adaptive high/balanced quality, reduced-motion behavior, mute path, and teardown.
+
+## Verification
+
+- `npm run typecheck`
+- `npm test`
+- production Vite build
+- atomic Pages fallback regeneration and release-version alignment
+- GitHub Actions before merge
+- live cache-version check after deploy
+
+The next owner review should focus on two-minute pacing, sector fairness, score/medal balance, failure clarity, retry speed, and portal history—not on reopening accepted visual decisions without a new observed issue.

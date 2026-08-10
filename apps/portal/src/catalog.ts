@@ -5,7 +5,7 @@ export type Game = {
   description: string;
   genre: string;
   session: string;
-  mode: "visual-gate" | "concept";
+  mode: "production" | "visual-gate" | "concept";
   accent: string;
   tags: string[];
   playable?: boolean;
@@ -14,14 +14,14 @@ export type Game = {
 export const games: Game[] = [
   {
     slug: "gravity-courier",
-    eyebrow: "Featured / Visual Gate 01",
+    eyebrow: "Featured / Production Flight 01",
     title: "Gravity Courier",
     description: "Thread a luminous courier craft through collapsing orbital machinery. Trade safe lines for impossible multipliers.",
     genre: "Precision flight",
-    session: "2–4 min",
-    mode: "visual-gate",
+    session: "2 min",
+    mode: "production",
     accent: "amber",
-    tags: ["3D", "Skill", "Visual gate"],
+    tags: ["3D", "Skill", "Daily route"],
     playable: true
   },
   {

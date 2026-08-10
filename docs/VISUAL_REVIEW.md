@@ -1,28 +1,36 @@
 # Gravity Courier visual review record
 
-Candidate: `0.11.0`  
+Candidate: `0.12.0`  
 Reference: user-supplied YouTube sequence around 03:40  
-Status: **awaiting numeric evidence and owner review of particle correction**
+Status: **owner accepted visual direction; performance capture waived for production transition**
 
-Owner acceptance: direct controls, the candidate 0.8 procedural background and candidate 0.9 hazard visibility are accepted and frozen.
+## Owner disposition
 
-Owner test coverage: three complete candidate 0.10 routes on desktop and three on mobile. This is enough repetition for functional consistency, but the end-of-run report values, named devices/browsers and captures were not supplied.
+The owner accepted direct controls, the candidate 0.8 procedural background, the candidate 0.9 hazard visibility correction, and the candidate 0.11 foreground-particle reduction.
 
-Owner-reported issue: the separate near-field route particles looked like snowflakes flying toward the camera, creating a snowstorm that made the route hard to see. Candidate 0.11 substantially reduces their count, size, brightness and boost amplification without changing the procedural backdrop.
+The owner completed three candidate 0.10 runs on desktop and three on mobile. End-of-run report screenshots, named devices/browsers, and numeric frame-pacing values were not supplied. The owner then chose to skip screenshots and explicitly authorized Production Gameplay Batch 1.
 
-Current review focus: confirm candidate 0.11 route visibility, then capture one desktop and one mobile end-of-run report.
+This authorization closes the visual-feasibility phase by owner direction. It does not manufacture missing performance evidence or certify specific frame-rate targets.
 
 ## Review matrix
 
-| Dimension | Evidence required | Pass condition | Result |
-| --- | --- | --- | --- |
-| Composition | Desktop and mobile gameplay captures | Clear craft silhouette and readable route at speed | Candidate 0.10 repeated on both platforms; 0.11 correction pending |
-| Lighting/materials | Reference side-by-side frames | Deliberate warm/cool separation and convincing metallic response | Pending |
-| Motion/feel | Uncut 30-second input capture | Immediate steering, legible boost, near miss and hit response | Three owner runs per platform; capture pending |
-| Effects | Candidate 0.11 gameplay capture | Premium energy response without obscuring hazards | Failed on 0.10: route particles obscured view; 0.11 pending |
-| Sound | Headphone and mobile-speaker review | Engine, boost, impact and completion cues remain distinct | Pending |
-| Desktop performance | End-of-run report plus named device/browser | Stable 60 fps at 1080p | Three routes completed; values not supplied |
-| Mobile performance | End-of-run report plus named device/browser | Stable 30 fps with balanced tier | Three routes completed; values not supplied |
-| Lifecycle | Five launch/exit/restart cycles | No continuing audio, listeners, canvas or GPU growth | Pending |
+| Dimension | Result |
+| --- | --- |
+| Composition | Owner accepted the procedural background and route presentation. |
+| Controls/motion | Owner accepted the direct steering behavior after repeated desktop and mobile runs. |
+| Hazard readability | Candidate 0.9 accepted; gray bodies remain visible at distance with orange warning accents. |
+| Foreground effects | Candidate 0.10 failed because particles resembled a snowstorm; candidate 0.11 reduction accepted. |
+| Sound | No formal headphone/mobile-speaker record supplied. |
+| Desktop performance | Three routes completed; named device/browser and numeric report not supplied. |
+| Mobile performance | Three routes completed; named device/browser and numeric report not supplied. |
+| Lifecycle | No formal five-cycle resource-growth record supplied. |
 
-No row may be marked passed without naming the tested device/browser and linking or recording the evidence.
+## Frozen visual baseline for production
+
+- Crisp scene with full-screen fog, bloom, FXAA, grain, and chromatic aberration disabled.
+- Procedural `DynamicTexture` deep-space backdrop remains unchanged.
+- Cool readable gunmetal hazards retain orange warning accents.
+- `route-stars` remains restrained at 280/140 capacity, 72/34 emission, `0.052` maximum size, low alpha, cool colour, and `1.12` boost amplification.
+- Accepted direct controls and flight-vector response remain unchanged.
+
+Any later visual change requires a specific playtest finding or owner request.
