@@ -1,0 +1,7 @@
+{
+  "name": "@4444555/game-sdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" }
+}
