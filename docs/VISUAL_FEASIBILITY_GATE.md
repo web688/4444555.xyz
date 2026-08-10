@@ -77,3 +77,9 @@ Automatic downgrading is a safety net, not performance approval. Physical-device
 - excludes the backdrop from object glow so it cannot soften the complete frame;
 - keeps fog, full-screen bloom, FXAA, grain and chromatic aberration disabled;
 - rotates the distant dome almost imperceptibly without affecting gameplay readability.
+
+## Candidate 0.8 sky-material correction
+
+- removes the near-white emissive base that was being added over every pixel of the backdrop texture;
+- preserves the generated deep-space texture as the dome's only emissive contribution;
+- restores black space, star colour and nebula contrast without changing the accepted direct controls.
