@@ -22,6 +22,27 @@ import { CourierAudio } from "./audio";
 
 export type GatePhase = "running" | "paused" | "complete" | "error";
 
+export type GateReport = {
+  averageFps: number;
+  onePercentLowFps: number;
+  p95FrameMs: number;
+  p99FrameMs: number;
+  slowFramePercent: number;
+  sampleCount: number;
+  renderWidth: number;
+  renderHeight: number;
+  viewportWidth: number;
+  viewportHeight: number;
+  devicePixelRatio: number;
+  quality: "high" | "balanced";
+  browser: string;
+  platform: string;
+  hardwareConcurrency: number;
+  deviceMemoryGb: number | null;
+  reducedMotion: boolean;
+  runNumber: number;
+};
+
 export type GateTelemetry = {
   phase: GatePhase;
   elapsed: number;
@@ -37,6 +58,7 @@ export type GateTelemetry = {
   steerX: number;
   steerY: number;
   steering: boolean;
+  report: GateReport | null;
 };
 
 export type GateRuntime = {
@@ -149,6 +171,9 @@ export async function createGravityCourierScene(
   let callout = "";
   let calloutSeconds = 0;
   let relayAnnounced = false;
+  let frameTimes: number[] = [];
+  let report: GateReport | null = null;
+  let runNumber = 1;
 
   const onKeyDown = (event: KeyboardEvent) => {
     pressed.add(event.code);
@@ -196,8 +221,41 @@ export async function createGravityCourierScene(
     pointerTarget.y = Scalar.Clamp(-(((event.clientY - bounds.top) / bounds.height) * 2 - 1), -1, 1);
   }
 
-  function update(delta: number) {
+  function buildReport(): GateReport {
+    const fallbackFrameMs = 1000 / Math.max(smoothedFps, 1);
+    const samples = frameTimes.length > 0 ? [...frameTimes].sort((left, right) => left - right) : [fallbackFrameMs];
+    const percentile = (ratio: number) => samples[Math.min(samples.length - 1, Math.floor((samples.length - 1) * ratio))] ?? fallbackFrameMs;
+    const averageFrameMs = samples.reduce((total, sample) => total + sample, 0) / samples.length;
+    const p95FrameMs = percentile(0.95);
+    const p99FrameMs = percentile(0.99);
+    const deviceMemory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? null;
+    const round = (value: number) => Math.round(value * 10) / 10;
+
+    return {
+      averageFps: round(1000 / Math.max(averageFrameMs, 0.1)),
+      onePercentLowFps: round(1000 / Math.max(p99FrameMs, 0.1)),
+      p95FrameMs: round(p95FrameMs),
+      p99FrameMs: round(p99FrameMs),
+      slowFramePercent: round((samples.filter((sample) => sample > 33.34).length / samples.length) * 100),
+      sampleCount: samples.length,
+      renderWidth: engine.getRenderWidth(),
+      renderHeight: engine.getRenderHeight(),
+      viewportWidth: Math.round(canvas.clientWidth),
+      viewportHeight: Math.round(canvas.clientHeight),
+      devicePixelRatio: round(window.devicePixelRatio),
+      quality,
+      browser: identifyBrowser(),
+      platform: navigator.platform || "Unknown platform",
+      hardwareConcurrency: navigator.hardwareConcurrency ?? 0,
+      deviceMemoryGb: deviceMemory,
+      reducedMotion,
+      runNumber,
+    };
+  }
+
+  function update(delta: number, frameMs: number) {
     if (paused || destroyed) return;
+    if (!complete && elapsed >= 1 && Number.isFinite(frameMs)) frameTimes.push(Scalar.Clamp(frameMs, 0.1, 250));
     const activeGamepad = Array.from(navigator.getGamepads?.() ?? []).find((pad): pad is Gamepad => Boolean(pad?.connected));
     const gamepadX = Math.abs(activeGamepad?.axes[0] ?? 0) > 0.12 ? activeGamepad?.axes[0] ?? 0 : 0;
     const gamepadY = Math.abs(activeGamepad?.axes[1] ?? 0) > 0.12 ? activeGamepad?.axes[1] ?? 0 : 0;
@@ -232,6 +290,7 @@ export async function createGravityCourierScene(
       score += Math.round(speed * delta * multiplier * 0.8);
       if (elapsed >= ROUTE_SECONDS) {
         complete = true;
+        report = buildReport();
         callout = "DELIVERY CONFIRMED";
         calloutSeconds = 3;
         audio.complete();
@@ -341,6 +400,7 @@ export async function createGravityCourierScene(
         steerX: Scalar.Clamp(targetX / 8.3, -1, 1),
         steerY: Scalar.Clamp(targetY / 4.5, -1, 1),
         steering,
+        report,
       });
     }
   }
@@ -354,7 +414,8 @@ export async function createGravityCourierScene(
   }
 
   const render = () => {
-    update(Math.min(engine.getDeltaTime() / 1000, 0.05));
+    const frameMs = engine.getDeltaTime();
+    update(Math.min(frameMs / 1000, 0.05), frameMs);
     scene.render();
   };
 
@@ -363,7 +424,7 @@ export async function createGravityCourierScene(
     paused = true;
     engine.stopRenderLoop(render);
     audio.setBoost(false);
-    onTelemetry({ phase: "paused", elapsed, progress: elapsed / ROUTE_SECONDS, score, multiplier, speed: Math.round(speed * 18.5), integrity, quality, fps: Math.round(smoothedFps), inputMode, callout, steerX: Scalar.Clamp(targetX / 8.3, -1, 1), steerY: Scalar.Clamp(targetY / 4.5, -1, 1), steering: false });
+    onTelemetry({ phase: "paused", elapsed, progress: elapsed / ROUTE_SECONDS, score, multiplier, speed: Math.round(speed * 18.5), integrity, quality, fps: Math.round(smoothedFps), inputMode, callout, steerX: Scalar.Clamp(targetX / 8.3, -1, 1), steerY: Scalar.Clamp(targetY / 4.5, -1, 1), steering: false, report });
   }
 
   function resume() {
@@ -381,6 +442,9 @@ export async function createGravityCourierScene(
     speed = 54;
     complete = false;
     relayAnnounced = false;
+    frameTimes = [];
+    report = null;
+    runNumber += 1;
     callout = "ROUTE RESET";
     calloutSeconds = 1.4;
     targetX = 0;
@@ -423,6 +487,21 @@ export async function createGravityCourierScene(
   engine.runRenderLoop(render);
 
   return { pause, resume, restart, setMuted: (muted) => audio.setMuted(muted), destroy };
+}
+
+function identifyBrowser() {
+  const userAgent = navigator.userAgent;
+  const candidates: Array<[RegExp, string]> = [
+    [/Edg\/([\d.]+)/, "Edge"],
+    [/Firefox\/([\d.]+)/, "Firefox"],
+    [/Chrome\/([\d.]+)/, "Chrome"],
+    [/Version\/([\d.]+).*Safari/, "Safari"],
+  ];
+  for (const [pattern, name] of candidates) {
+    const match = userAgent.match(pattern);
+    if (match?.[1]) return `${name} ${match[1]}`;
+  }
+  return "Unknown browser";
 }
 
 function createCourier(scene: Scene) {
