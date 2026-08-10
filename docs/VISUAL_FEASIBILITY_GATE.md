@@ -68,3 +68,12 @@ Automatic downgrading is a safety net, not performance approval. Physical-device
 - applies the same direction-first behavior to analog gamepad steering;
 - separates gamepad boost from steering so boost alone cannot pull the ship toward centre;
 - clears keyboard and pointer state on window blur or visibility loss to prevent stuck directions.
+
+## Candidate 0.7 deep-space backdrop pass
+
+- adds a deterministic procedural deep-space dome with dense sharp stars and sparse bright stellar crosses;
+- introduces localized cyan, violet and amber nebula regions while retaining large true-black areas;
+- adds subtle graphic filaments to give the orbital route a stronger sense of place and scale;
+- excludes the backdrop from object glow so it cannot soften the complete frame;
+- keeps fog, full-screen bloom, FXAA, grain and chromatic aberration disabled;
+- rotates the distant dome almost imperceptibly without affecting gameplay readability.
