@@ -34,6 +34,9 @@ export type GateTelemetry = {
   fps: number;
   inputMode: "keyboard" | "pointer" | "gamepad";
   callout: string;
+  steerX: number;
+  steerY: number;
+  steering: boolean;
 };
 
 export type GateRuntime = {
@@ -78,14 +81,14 @@ export async function createGravityCourierScene(
   const scene = new Scene(engine);
   scene.clearColor = new Color4(0.004, 0.006, 0.016, 1);
   scene.fogMode = Scene.FOGMODE_LINEAR;
-  scene.fogColor = new Color3(0.008, 0.012, 0.032);
-  scene.fogStart = 32;
-  scene.fogEnd = quality === "high" ? 245 : 185;
+  scene.fogColor = new Color3(0.004, 0.006, 0.016);
+  scene.fogStart = 140;
+  scene.fogEnd = quality === "high" ? 560 : 480;
   scene.imageProcessingConfiguration.toneMappingEnabled = true;
-  scene.imageProcessingConfiguration.exposure = 1.18;
-  scene.imageProcessingConfiguration.contrast = 1.32;
+  scene.imageProcessingConfiguration.exposure = 1.12;
+  scene.imageProcessingConfiguration.contrast = 1.42;
   scene.imageProcessingConfiguration.vignetteEnabled = true;
-  scene.imageProcessingConfiguration.vignetteWeight = 2.2;
+  scene.imageProcessingConfiguration.vignetteWeight = 1.45;
   scene.imageProcessingConfiguration.vignetteColor = new Color4(0.02, 0.025, 0.06, 1);
 
   const camera = new FreeCamera("courier-camera", new Vector3(0, 4.7, -16.5), scene);
@@ -108,18 +111,18 @@ export async function createGravityCourierScene(
   rimLight.diffuse = new Color3(0.15, 0.75, 1);
 
   const glow = new GlowLayer("energy-glow", scene, { blurKernelSize: quality === "high" ? 48 : 24 });
-  glow.intensity = quality === "high" ? 0.72 : 0.48;
+  glow.intensity = quality === "high" ? 0.5 : 0.34;
   const pipeline = new DefaultRenderingPipeline("cinematic-pipeline", true, scene, [camera]);
   pipeline.fxaaEnabled = true;
   pipeline.bloomEnabled = true;
-  pipeline.bloomThreshold = 0.68;
-  pipeline.bloomWeight = quality === "high" ? 0.34 : 0.22;
-  pipeline.bloomKernel = quality === "high" ? 72 : 32;
-  pipeline.bloomScale = 0.55;
+  pipeline.bloomThreshold = 0.82;
+  pipeline.bloomWeight = quality === "high" ? 0.24 : 0.15;
+  pipeline.bloomKernel = quality === "high" ? 48 : 24;
+  pipeline.bloomScale = 0.5;
   pipeline.chromaticAberrationEnabled = quality === "high" && !reducedMotion;
   pipeline.grainEnabled = quality === "high";
   if (pipeline.grain) {
-    pipeline.grain.intensity = 7;
+    pipeline.grain.intensity = 2.4;
     pipeline.grain.animated = true;
   }
 
@@ -205,8 +208,10 @@ export async function createGravityCourierScene(
         engine.setHardwareScalingLevel(Math.max(1.35, window.devicePixelRatio / 1.1));
         pipeline.chromaticAberrationEnabled = false;
         pipeline.grainEnabled = false;
-        pipeline.bloomKernel = 32;
-        glow.intensity = 0.48;
+        pipeline.bloomKernel = 24;
+        pipeline.bloomWeight = 0.15;
+        glow.intensity = 0.34;
+        scene.fogEnd = 480;
         callout = "ADAPTIVE RENDERING · BALANCED";
         calloutSeconds = 2.2;
       }
@@ -231,6 +236,7 @@ export async function createGravityCourierScene(
 
     const horizontal = gamepadActive ? gamepadX : Number(pressed.has("KeyD") || pressed.has("ArrowRight")) - Number(pressed.has("KeyA") || pressed.has("ArrowLeft"));
     const vertical = gamepadActive ? -gamepadY : Number(pressed.has("KeyW") || pressed.has("ArrowUp")) - Number(pressed.has("KeyS") || pressed.has("ArrowDown"));
+    const steering = pointerTarget.active || gamepadActive || horizontal !== 0 || vertical !== 0;
     if (pointerTarget.active) {
       targetX = pointerTarget.x * 8.3;
       targetY = pointerTarget.y * 4.5;
@@ -303,8 +309,8 @@ export async function createGravityCourierScene(
     calloutSeconds = Math.max(0, calloutSeconds - delta);
     if (calloutSeconds === 0 && !complete) callout = "";
     shake = Math.max(0, shake - delta * 1.9);
-    scene.imageProcessingConfiguration.exposure = 1.18 + hitFlash * 0.65;
-    glow.intensity = (quality === "high" ? 0.72 : 0.48) + nearMissFlash * 0.62;
+    scene.imageProcessingConfiguration.exposure = 1.12 + hitFlash * 0.65;
+    glow.intensity = (quality === "high" ? 0.5 : 0.34) + nearMissFlash * 0.48;
     shield.visibility = hitFlash * 0.82;
     const shieldPulse = 1 + (1 - hitFlash) * 0.24;
     shield.scaling.set(1.45 * shieldPulse, 0.7 * shieldPulse, shieldPulse);
@@ -331,6 +337,9 @@ export async function createGravityCourierScene(
         fps: Math.round(smoothedFps),
         inputMode,
         callout,
+        steerX: Scalar.Clamp(targetX / 8.3, -1, 1),
+        steerY: Scalar.Clamp(targetY / 4.5, -1, 1),
+        steering,
       });
     }
   }
@@ -353,7 +362,7 @@ export async function createGravityCourierScene(
     paused = true;
     engine.stopRenderLoop(render);
     audio.setBoost(false);
-    onTelemetry({ phase: "paused", elapsed, progress: elapsed / ROUTE_SECONDS, score, multiplier, speed: Math.round(speed * 18.5), integrity, quality, fps: Math.round(smoothedFps), inputMode, callout });
+    onTelemetry({ phase: "paused", elapsed, progress: elapsed / ROUTE_SECONDS, score, multiplier, speed: Math.round(speed * 18.5), integrity, quality, fps: Math.round(smoothedFps), inputMode, callout, steerX: Scalar.Clamp(targetX / 8.3, -1, 1), steerY: Scalar.Clamp(targetY / 4.5, -1, 1), steering: false });
   }
 
   function resume() {
