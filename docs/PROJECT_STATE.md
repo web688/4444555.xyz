@@ -1,6 +1,6 @@
 # Project state — 4444555 Arcade
 
-Updated: 2026-08-10, after owner acceptance of the Gravity Courier 0.8 background.
+Updated: 2026-08-10, after preparing Gravity Courier 0.9 to correct owner-reported obstacle visibility.
 
 This is the durable handoff for continuing the project in a new conversation. Repository state is authoritative when it is newer than this document.
 
@@ -29,7 +29,7 @@ The platform must make it straightforward to add games and later show player sco
   - Gravity Courier — playable visual candidate.
   - Echo Vector — concept.
   - Prism Siege — concept.
-- Gravity Courier manifest: candidate `0.8.0`, status `visual-gate`.
+- Gravity Courier manifest: candidate `0.9.0`, status `visual-gate`.
 - Source: `apps/portal/src/games/gravity-courier/`.
 - Manifest: `catalog/manifests/gravity-courier.json`.
 - Quality evidence: `docs/VISUAL_FEASIBILITY_GATE.md` and `docs/VISUAL_REVIEW.md`.
@@ -64,13 +64,19 @@ The owner asked whether it could later be replaced by an image and was told yes:
 
 Candidate 0.7 introduced the richer background but accidentally added a near-white emissive base. Candidate 0.8 removed that additive emissive colour and restored black space and nebula contrast. The accepted baseline is PR #10 / commit `de07667c7b1ff6920f7a96923973021ffc27656b`.
 
+### Obstacle visibility
+
+On 2026-08-10 the owner reported that the gray obstacle bodies could be seen only at very close range. A supplied live-site screenshot confirmed that the left-side obstacle bodies disappeared against black space, while the right-side obstacle was readable mainly as a silhouette against the orange planet. This is a visibility defect, not an intended feature.
+
+Candidate 0.9 replaces the near-black, 95%-metallic hazard material with lighter cool gunmetal at 48% metallic and higher roughness so it receives the existing lighting and retains a complete silhouette at distance. Orange remains the warning accent. The accepted background and controls are unchanged. Owner review of the deployed 0.9 correction is pending.
+
 ## Repository state at this handoff
 
-- Integration baseline inspected: `main@de07667c7b1ff6920f7a96923973021ffc27656b`.
-- PRs #1 through #10 were merged.
+- Integration baseline before candidate 0.9: `main@477ff3fb438d384cf95d125987f318ce569c4d37`.
+- PRs #1 through #11 were merged before the candidate 0.9 change.
 - No open pull requests or issues existed at inspection time.
 - The latest PR verification completed successfully.
-- Root Pages fallback assets and the optimized Vite/Actions deployment are both versioned for candidate 0.8.0.
+- Candidate 0.9 synchronizes the source, manifest, root Pages fallback assets, documentation, and regression checks.
 
 This handoff change itself will be newer than the gameplay baseline above. Future conversations must inspect recent GitHub history rather than assuming this SHA is still the repository head.
 
@@ -100,4 +106,4 @@ Do not silently promote Gravity Courier into full production or mark the visual 
 
 ## What happens next
 
-There is no pre-authorized implementation task after the accepted 0.8 background. Ask what the user wants to address next, then inspect the current repository state before acting. Do not reopen the accepted controls or background unless new feedback specifically requires it.
+First ask the owner to review distant obstacle readability in deployed candidate 0.9, especially hazards on the left against black space. If accepted, continue the formal desktop/mobile visual-gate review. Preserve the accepted controls and background unless new feedback specifically requires a change.
