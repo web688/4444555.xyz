@@ -33,6 +33,8 @@ test("visual candidate exposes lifecycle cleanup, clear depth and adaptive contr
   assert.match(scene, /createDeepSpaceBackdrop/);
   assert.match(scene, /glow\.addExcludedMesh\(backdrop\)/);
   assert.match(scene, /starCount = quality === "high" \? 1450 : 720/);
+  assert.match(scene, /material\.emissiveColor = Color3\.Black\(\)/);
+  assert.doesNotMatch(scene, /material\.emissiveColor = new Color3\(0\.92, 0\.96, 1\)/);
   assert.match(scene, /steerX: Scalar\.Clamp/);
   assert.match(gate, /courier-flight-vector/);
   assert.match(styles, /courier-flight-vector/);
