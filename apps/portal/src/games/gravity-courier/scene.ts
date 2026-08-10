@@ -123,6 +123,8 @@ export async function createGravityCourierScene(
   const obstacles = createObstacles(scene, quality);
   const relay = createRelayGate(scene, quality);
   createPlanet(scene, quality);
+  const backdrop = createDeepSpaceBackdrop(scene, quality);
+  glow.addExcludedMesh(backdrop);
   const starfield = createStarfield(scene, ship, quality);
 
   const pressed = new Set<string>();
@@ -252,6 +254,8 @@ export async function createGravityCourierScene(
     ship.rotation.z = Scalar.Lerp(ship.rotation.z, -(targetX - ship.position.x) * 0.23 - horizontal * 0.16, follow);
     ship.rotation.x = Scalar.Lerp(ship.rotation.x, (targetY - ship.position.y) * 0.08, follow);
     ship.scaling.z = Scalar.Lerp(ship.scaling.z, boost ? 1.08 : 1, follow);
+    backdrop.rotation.y += delta * 0.0018;
+    backdrop.rotation.z += delta * 0.00035;
 
     const routeDelta = speed * delta;
     for (const ring of movingRings) {
@@ -600,6 +604,99 @@ function createPlanet(scene: Scene, quality: GateTelemetry["quality"]) {
   const moon = CreateSphere("gate-moon", { diameter: 12, segments: 24 }, scene);
   moon.position.set(-44, 18, 138);
   moon.material = pbr(scene, "moon-surface", new Color3(0.14, 0.16, 0.2), 0.15, 0.95);
+}
+
+function createDeepSpaceBackdrop(scene: Scene, quality: GateTelemetry["quality"]) {
+  const width = quality === "high" ? 2048 : 1024;
+  const height = width / 2;
+  const texture = new DynamicTexture("deep-space-backdrop-texture", { width, height }, scene, false);
+  const context = texture.getContext() as unknown as CanvasRenderingContext2D;
+  context.fillStyle = "#010207";
+  context.fillRect(0, 0, width, height);
+
+  const paintNebula = (x: number, y: number, radius: number, verticalScale: number, inner: string, middle: string) => {
+    context.save();
+    context.translate(x, y);
+    context.scale(1, verticalScale);
+    const gradient = context.createRadialGradient(0, 0, 0, 0, 0, radius);
+    gradient.addColorStop(0, inner);
+    gradient.addColorStop(0.42, middle);
+    gradient.addColorStop(1, "rgba(0,0,0,0)");
+    context.fillStyle = gradient;
+    context.fillRect(-radius, -radius, radius * 2, radius * 2);
+    context.restore();
+  };
+
+  paintNebula(width * 0.24, height * 0.57, width * 0.2, 0.48, "rgba(18,118,170,.42)", "rgba(20,48,104,.18)");
+  paintNebula(width * 0.45, height * 0.41, width * 0.16, 0.38, "rgba(94,47,148,.32)", "rgba(32,31,88,.15)");
+  paintNebula(width * 0.73, height * 0.58, width * 0.18, 0.42, "rgba(194,74,27,.27)", "rgba(98,31,23,.13)");
+
+  let seed = 0x4444555;
+  const random = () => {
+    seed = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    seed ^= seed + Math.imul(seed ^ (seed >>> 7), 61 | seed);
+    return ((seed ^ (seed >>> 14)) >>> 0) / 4294967296;
+  };
+
+  context.globalCompositeOperation = "screen";
+  const cloudCount = quality === "high" ? 42 : 24;
+  for (let index = 0; index < cloudCount; index += 1) {
+    const band = index % 3;
+    const centerX = band === 0 ? width * 0.24 : band === 1 ? width * 0.46 : width * 0.73;
+    const centerY = band === 0 ? height * 0.57 : band === 1 ? height * 0.41 : height * 0.58;
+    const hue = band === 0 ? "40,160,218" : band === 1 ? "116,70,180" : "218,94,42";
+    paintNebula(
+      centerX + (random() - 0.5) * width * 0.22,
+      centerY + (random() - 0.5) * height * 0.22,
+      width * (0.018 + random() * 0.045),
+      0.24 + random() * 0.48,
+      `rgba(${hue},${0.04 + random() * 0.1})`,
+      `rgba(${hue},.015)`,
+    );
+  }
+
+  context.lineCap = "round";
+  for (let index = 0; index < 5; index += 1) {
+    context.beginPath();
+    context.moveTo(width * (0.08 + index * 0.16), height * (0.68 - index * 0.045));
+    context.bezierCurveTo(width * 0.32, height * (0.26 + index * 0.035), width * 0.62, height * (0.78 - index * 0.04), width * 0.9, height * (0.38 + index * 0.025));
+    context.strokeStyle = index % 2 ? "rgba(89,108,205,.055)" : "rgba(62,184,218,.07)";
+    context.lineWidth = 1 + index * 0.55;
+    context.stroke();
+  }
+
+  const starCount = quality === "high" ? 1450 : 720;
+  for (let index = 0; index < starCount; index += 1) {
+    const x = 8 + random() * (width - 16);
+    const y = 8 + random() * (height - 16);
+    const bright = random();
+    const size = bright > 0.985 ? 2.2 + random() * 1.8 : bright > 0.9 ? 1.1 + random() : 0.45 + random() * 0.75;
+    context.fillStyle = bright > 0.95 ? "rgba(214,240,255,.94)" : bright > 0.72 ? "rgba(151,202,238,.74)" : "rgba(206,213,226,.48)";
+    context.fillRect(x, y, size, size);
+    if (bright > 0.992) {
+      context.fillStyle = "rgba(126,213,255,.38)";
+      context.fillRect(x - size * 2.2, y + size * 0.42, size * 5.4, Math.max(0.6, size * 0.18));
+      context.fillRect(x + size * 0.42, y - size * 2.2, Math.max(0.6, size * 0.18), size * 5.4);
+    }
+  }
+  context.globalCompositeOperation = "source-over";
+  texture.update(false);
+
+  const material = new StandardMaterial("deep-space-backdrop-material", scene);
+  material.disableLighting = true;
+  material.diffuseColor = Color3.Black();
+  material.emissiveColor = new Color3(0.92, 0.96, 1);
+  material.emissiveTexture = texture;
+  material.specularColor = Color3.Black();
+  material.backFaceCulling = false;
+  material.disableDepthWrite = true;
+
+  const backdrop = CreateSphere("deep-space-backdrop", { diameter: 900, segments: quality === "high" ? 48 : 28 }, scene);
+  backdrop.material = material;
+  backdrop.infiniteDistance = true;
+  backdrop.isPickable = false;
+  backdrop.rotation.set(0.18, -0.42, -0.05);
+  return backdrop;
 }
 
 function createStarfield(scene: Scene, emitter: TransformNode, quality: GateTelemetry["quality"]) {
