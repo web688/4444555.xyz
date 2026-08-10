@@ -17,7 +17,7 @@ test("Gravity Courier is lazy-loaded and version-aligned", async () => {
 
 test("visual candidate exposes lifecycle cleanup and adaptive controls", async () => {
   const scene = await read("../apps/portal/src/games/gravity-courier/scene.ts");
-  for (const capability of ["pause()", "resume()", "restart()", "destroy()", "prefers-reduced-motion", "pointerdown", "keydown"]) {
+  for (const capability of ["pause()", "resume()", "restart()", "destroy()", "prefers-reduced-motion", "pointerdown", "keydown", "getGamepads", "lowFpsSeconds", "createRelayGate"]) {
     assert.ok(scene.includes(capability), `missing ${capability}`);
   }
 });

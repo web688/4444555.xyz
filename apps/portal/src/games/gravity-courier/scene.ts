@@ -31,6 +31,9 @@ export type GateTelemetry = {
   speed: number;
   integrity: number;
   quality: "high" | "balanced";
+  fps: number;
+  inputMode: "keyboard" | "pointer" | "gamepad";
+  callout: string;
 };
 
 export type GateRuntime = {
@@ -62,7 +65,7 @@ export async function createGravityCourierScene(
   if (!Engine.isSupported()) throw new Error("WebGL is not available in this browser.");
 
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const quality: GateTelemetry["quality"] =
+  let quality: GateTelemetry["quality"] =
     !reducedMotion && window.devicePixelRatio <= 2 && (navigator.hardwareConcurrency ?? 4) >= 6 ? "high" : "balanced";
   const engine = new Engine(
     canvas,
@@ -123,10 +126,12 @@ export async function createGravityCourierScene(
   const audio = new CourierAudio();
   void audio.arm();
   const ship = createCourier(scene);
+  const shield = createShield(scene, ship);
   const movingRings = createOrbitalLane(scene, quality);
   const obstacles = createObstacles(scene, quality);
+  const relay = createRelayGate(scene, quality);
   createPlanet(scene, quality);
-  createStarfield(scene, ship, quality);
+  const starfield = createStarfield(scene, ship, quality);
 
   const pressed = new Set<string>();
   const pointerTarget = { active: false, x: 0, y: 0 };
@@ -141,19 +146,28 @@ export async function createGravityCourierScene(
   let complete = false;
   let destroyed = false;
   let hitFlash = 0;
+  let nearMissFlash = 0;
   let shake = 0;
   let lastTelemetry = 0;
+  let smoothedFps = 60;
+  let lowFpsSeconds = 0;
+  let inputMode: GateTelemetry["inputMode"] = "keyboard";
+  let callout = "";
+  let calloutSeconds = 0;
+  let relayAnnounced = false;
 
   const onKeyDown = (event: KeyboardEvent) => {
     pressed.add(event.code);
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
     void audio.arm();
+    inputMode = "keyboard";
   };
   const onKeyUp = (event: KeyboardEvent) => pressed.delete(event.code);
   const onPointerDown = (event: PointerEvent) => {
     pointerTarget.active = true;
     canvas.setPointerCapture(event.pointerId);
     setPointerTarget(event);
+    inputMode = "pointer";
     void audio.arm();
   };
   const onPointerMove = (event: PointerEvent) => {
@@ -176,25 +190,53 @@ export async function createGravityCourierScene(
 
   function update(delta: number) {
     if (paused || destroyed) return;
-    const boost = (pressed.has("Space") || pointerTarget.active) && !complete;
+    const activeGamepad = Array.from(navigator.getGamepads?.() ?? []).find((pad): pad is Gamepad => Boolean(pad?.connected));
+    const gamepadX = Math.abs(activeGamepad?.axes[0] ?? 0) > 0.12 ? activeGamepad?.axes[0] ?? 0 : 0;
+    const gamepadY = Math.abs(activeGamepad?.axes[1] ?? 0) > 0.12 ? activeGamepad?.axes[1] ?? 0 : 0;
+    const gamepadBoost = Boolean(activeGamepad?.buttons[0]?.pressed || (activeGamepad?.buttons[7]?.value ?? 0) > 0.35);
+    const gamepadActive = Math.abs(gamepadX) > 0 || Math.abs(gamepadY) > 0 || gamepadBoost;
+    if (gamepadActive) inputMode = "gamepad";
+
+    smoothedFps = Scalar.Lerp(smoothedFps, 1 / Math.max(delta, 0.001), 0.045);
+    if (quality === "high") {
+      lowFpsSeconds = smoothedFps < 47 ? lowFpsSeconds + delta : Math.max(0, lowFpsSeconds - delta * 0.5);
+      if (lowFpsSeconds > 2.4) {
+        quality = "balanced";
+        engine.setHardwareScalingLevel(Math.max(1.35, window.devicePixelRatio / 1.1));
+        pipeline.chromaticAberrationEnabled = false;
+        pipeline.grainEnabled = false;
+        pipeline.bloomKernel = 32;
+        glow.intensity = 0.48;
+        callout = "ADAPTIVE RENDERING · BALANCED";
+        calloutSeconds = 2.2;
+      }
+    }
+
+    const boost = (pressed.has("Space") || pointerTarget.active || gamepadBoost) && !complete;
     const targetSpeed = complete ? 18 : boost ? 82 : 54;
     speed = Scalar.Lerp(speed, targetSpeed, 1 - Math.exp(-delta * 3.2));
     audio.setBoost(boost);
+    starfield.emitRate = (quality === "high" ? 420 : 190) * (boost ? 1.65 : 1);
 
     if (!complete) {
       elapsed = Math.min(ROUTE_SECONDS, elapsed + delta);
       score += Math.round(speed * delta * multiplier * 0.8);
       if (elapsed >= ROUTE_SECONDS) {
         complete = true;
+        callout = "DELIVERY CONFIRMED";
+        calloutSeconds = 3;
         audio.complete();
       }
     }
 
-    const horizontal = Number(pressed.has("KeyD") || pressed.has("ArrowRight")) - Number(pressed.has("KeyA") || pressed.has("ArrowLeft"));
-    const vertical = Number(pressed.has("KeyW") || pressed.has("ArrowUp")) - Number(pressed.has("KeyS") || pressed.has("ArrowDown"));
+    const horizontal = gamepadActive ? gamepadX : Number(pressed.has("KeyD") || pressed.has("ArrowRight")) - Number(pressed.has("KeyA") || pressed.has("ArrowLeft"));
+    const vertical = gamepadActive ? -gamepadY : Number(pressed.has("KeyW") || pressed.has("ArrowUp")) - Number(pressed.has("KeyS") || pressed.has("ArrowDown"));
     if (pointerTarget.active) {
       targetX = pointerTarget.x * 8.3;
       targetY = pointerTarget.y * 4.5;
+    } else if (gamepadActive) {
+      targetX = Scalar.Lerp(targetX, gamepadX * 8.3, 1 - Math.exp(-delta * 8));
+      targetY = Scalar.Lerp(targetY, -gamepadY * 4.5, 1 - Math.exp(-delta * 8));
     } else {
       targetX = Scalar.Clamp(targetX + horizontal * delta * 10.5, -8.3, 8.3);
       targetY = Scalar.Clamp(targetY + vertical * delta * 8, -4.4, 4.4);
@@ -214,6 +256,18 @@ export async function createGravityCourierScene(
       ring.root.rotation.z += ring.spin * delta;
       if (ring.root.position.z < -28) ring.root.position.z += ROUTE_LENGTH;
     }
+    const routeProgress = elapsed / ROUTE_SECONDS;
+    relay.root.position.z = 250 - Math.pow(routeProgress, 2.35) * 253;
+    relay.root.rotation.z += delta * (complete ? 1.4 : 0.26);
+    relay.inner.rotation.z -= delta * (complete ? 2 : 0.48);
+    const relayPulse = 1 + Math.sin(elapsed * 4.5) * 0.04 + (complete ? Math.sin(elapsed * 12) * 0.08 : 0);
+    relay.core.scaling.setAll(relayPulse);
+    relay.light.intensity = 24 + routeProgress * 34 + (complete ? 32 : 0);
+    if (!relayAnnounced && routeProgress > 0.8) {
+      relayAnnounced = true;
+      callout = "RELAY LOCK ACQUIRED";
+      calloutSeconds = 2.2;
+    }
     for (const obstacle of obstacles) {
       obstacle.root.position.z -= routeDelta;
       obstacle.root.rotation.z += Math.sin(elapsed * 0.4 + obstacle.phase) * delta * 0.22;
@@ -230,18 +284,30 @@ export async function createGravityCourierScene(
           score = Math.max(0, score - 650);
           hitFlash = 1;
           shake = reducedMotion ? 0.06 : 0.38;
+          callout = "HULL IMPACT · CHAIN LOST";
+          calloutSeconds = 1.5;
           audio.hit();
         } else if (lateral < obstacle.radius + 3.1) {
           multiplier = Math.min(8, multiplier + 1);
           score += 480 * multiplier;
+          nearMissFlash = 1;
+          callout = `NEAR MISS · ×${multiplier}`;
+          calloutSeconds = 1.25;
           audio.nearMiss(multiplier / 8);
         }
       }
     }
 
     hitFlash = Math.max(0, hitFlash - delta * 2.8);
+    nearMissFlash = Math.max(0, nearMissFlash - delta * 3.4);
+    calloutSeconds = Math.max(0, calloutSeconds - delta);
+    if (calloutSeconds === 0 && !complete) callout = "";
     shake = Math.max(0, shake - delta * 1.9);
     scene.imageProcessingConfiguration.exposure = 1.18 + hitFlash * 0.65;
+    glow.intensity = (quality === "high" ? 0.72 : 0.48) + nearMissFlash * 0.62;
+    shield.visibility = hitFlash * 0.82;
+    const shieldPulse = 1 + (1 - hitFlash) * 0.24;
+    shield.scaling.set(1.45 * shieldPulse, 0.7 * shieldPulse, shieldPulse);
     const shakeX = (Math.random() - 0.5) * shake;
     const shakeY = (Math.random() - 0.5) * shake;
     camera.position.x = Scalar.Lerp(camera.position.x, ship.position.x * 0.13 + shakeX, follow * 0.5);
@@ -251,7 +317,7 @@ export async function createGravityCourierScene(
     camera.setTarget(new Vector3(ship.position.x * 0.3, ship.position.y * 0.22, 31));
 
     const now = performance.now();
-    if (now - lastTelemetry > 90 || complete) {
+    if (now - lastTelemetry > 90) {
       lastTelemetry = now;
       onTelemetry({
         phase: complete ? "complete" : "running",
@@ -262,6 +328,9 @@ export async function createGravityCourierScene(
         speed: Math.round(speed * 18.5),
         integrity,
         quality,
+        fps: Math.round(smoothedFps),
+        inputMode,
+        callout,
       });
     }
   }
@@ -284,7 +353,7 @@ export async function createGravityCourierScene(
     paused = true;
     engine.stopRenderLoop(render);
     audio.setBoost(false);
-    onTelemetry({ phase: "paused", elapsed, progress: elapsed / ROUTE_SECONDS, score, multiplier, speed: Math.round(speed * 18.5), integrity, quality });
+    onTelemetry({ phase: "paused", elapsed, progress: elapsed / ROUTE_SECONDS, score, multiplier, speed: Math.round(speed * 18.5), integrity, quality, fps: Math.round(smoothedFps), inputMode, callout });
   }
 
   function resume() {
@@ -301,6 +370,9 @@ export async function createGravityCourierScene(
     integrity = 3;
     speed = 54;
     complete = false;
+    relayAnnounced = false;
+    callout = "ROUTE RESET";
+    calloutSeconds = 1.4;
     targetX = 0;
     targetY = 0;
     ship.position.set(0, 0, 0);
@@ -394,6 +466,54 @@ function createCourier(scene: Scene) {
   return root;
 }
 
+function createShield(scene: Scene, ship: TransformNode) {
+  const material = emissive(scene, "courier-shield-material", new Color3(0.12, 0.78, 1), 0.52);
+  material.alpha = 0.34;
+  material.wireframe = true;
+  material.backFaceCulling = false;
+  const shield = CreateSphere("courier-shield", { diameter: 5.4, segments: 24 }, scene);
+  shield.scaling.set(1.45, 0.7, 1);
+  shield.material = material;
+  shield.parent = ship;
+  shield.visibility = 0;
+  return shield;
+}
+
+function createRelayGate(scene: Scene, quality: GateTelemetry["quality"]) {
+  const root = new TransformNode("relay-gate", scene);
+  root.position.z = 250;
+  const inner = new TransformNode("relay-gate-inner", scene);
+  inner.parent = root;
+  const metal = pbr(scene, "relay-metal", new Color3(0.12, 0.13, 0.15), 0.96, 0.2);
+  const energy = emissive(scene, "relay-energy", new Color3(0.98, 0.64, 0.18), 1.35);
+  const cyan = emissive(scene, "relay-cyan", new Color3(0.16, 0.82, 1), 1.1);
+  const outer = CreateTorus("relay-outer", { diameter: 21, thickness: 0.42, tessellation: quality === "high" ? 128 : 64 }, scene);
+  outer.rotation.x = Math.PI / 2;
+  outer.material = metal;
+  outer.parent = root;
+  const innerRing = CreateTorus("relay-inner-ring", { diameter: 13.5, thickness: 0.16, tessellation: quality === "high" ? 96 : 48 }, scene);
+  innerRing.rotation.x = Math.PI / 2;
+  innerRing.material = cyan;
+  innerRing.parent = inner;
+  for (let index = 0; index < 12; index += 1) {
+    const angle = (index / 12) * Math.PI * 2;
+    const spoke = CreateBox(`relay-spoke-${index}`, { width: 4.2, height: index % 3 === 0 ? 0.36 : 0.14, depth: 0.26 }, scene);
+    spoke.position.set(Math.cos(angle) * 7.7, Math.sin(angle) * 7.7, 0);
+    spoke.rotation.z = angle;
+    spoke.material = index % 3 === 0 ? energy : metal;
+    spoke.parent = inner;
+  }
+  const core = CreateSphere("relay-core", { diameter: 1.4, segments: quality === "high" ? 32 : 18 }, scene);
+  core.material = energy;
+  core.parent = root;
+  const light = new PointLight("relay-light", Vector3.Zero(), scene);
+  light.diffuse = new Color3(1, 0.44, 0.08);
+  light.intensity = 24;
+  light.range = 48;
+  light.parent = root;
+  return { root, inner, core, light };
+}
+
 function createOrbitalLane(scene: Scene, quality: GateTelemetry["quality"]) {
   const ringMaterial = emissive(scene, "lane-energy", new Color3(0.11, 0.52, 0.72), 0.35);
   const metalMaterial = pbr(scene, "lane-metal", new Color3(0.08, 0.09, 0.11), 0.95, 0.38);
@@ -446,6 +566,15 @@ function createObstacles(scene: Scene, quality: GateTelemetry["quality"]) {
       warning.material = hot;
       warning.parent = root;
     }
+    if (index % 2 === 0) {
+      const verticalBlade = CreateBox(`hazard-cross-${index}`, { width: 0.22, height: 5.5, depth: 1 }, scene);
+      verticalBlade.material = metal;
+      verticalBlade.parent = root;
+      const verticalWarning = CreateBox(`hazard-cross-warning-${index}`, { width: 0.06, height: 2.1, depth: 1.04 }, scene);
+      verticalWarning.position.y = 2.3;
+      verticalWarning.material = hot;
+      verticalWarning.parent = root;
+    }
     obstacles.push({ root, radius: 3.2, resolved: false, phase: index * 0.8 });
   }
   return obstacles;
@@ -492,6 +621,7 @@ function createStarfield(scene: Scene, emitter: TransformNode, quality: GateTele
   particles.colorDead = new Color4(0.1, 0.16, 0.25, 0);
   particles.updateSpeed = 0.012;
   particles.start();
+  return particles;
 }
 
 function pbr(scene: Scene, name: string, color: Color3, metallic: number, roughness: number, emissiveColor = Color3.Black()) {

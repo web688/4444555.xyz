@@ -13,6 +13,9 @@ const initialTelemetry: GateTelemetry = {
   speed: 0,
   integrity: 3,
   quality: "balanced",
+  fps: 60,
+  inputMode: "keyboard",
+  callout: "",
 };
 
 export default function GravityCourierGate({ onExit }: Props) {
@@ -69,7 +72,8 @@ export default function GravityCourierGate({ onExit }: Props) {
       <header className="courier-hud top">
         <div className="courier-identity"><span className="live-dot" /> <b>VISUAL GATE 01</b><small>GRAVITY COURIER / ORBITAL LANE 04</small></div>
         <div className="courier-actions">
-          <span className={`quality-pill ${telemetry.quality}`}>{telemetry.quality} tier</span>
+          <span className="input-pill">{telemetry.inputMode}</span>
+          <span className={`quality-pill ${telemetry.quality}`}>{telemetry.quality} · {telemetry.fps} fps</span>
           <button onClick={toggleMute}>{muted ? "Sound off" : "Sound on"}</button>
           <button onClick={togglePause}>{telemetry.phase === "paused" ? "Resume" : "Pause"}</button>
           <button className="courier-close" onClick={onExit} aria-label="Exit Gravity Courier">×</button>
@@ -92,7 +96,10 @@ export default function GravityCourierGate({ onExit }: Props) {
         <div className="route-track"><i style={{ transform: `scaleX(${telemetry.progress})` }} /></div>
       </div>
 
-      <div className="courier-controls"><span>WASD / ARROWS</span> steer <b>·</b> <span>SPACE / HOLD</span> boost <b>·</b> <span>ESC</span> exit</div>
+      <div className="courier-reticle" aria-hidden="true"><i /><i /></div>
+      <div className={`courier-callout ${telemetry.callout ? "visible" : ""}`} aria-live="polite">{telemetry.callout}</div>
+
+      <div className="courier-controls"><span>WASD / ARROWS / STICK</span> steer <b>·</b> <span>SPACE / A / TRIGGER</span> boost <b>·</b> <span>ESC</span> exit</div>
 
       {telemetry.phase === "paused" && (
         <div className="courier-state"><p>ROUTE SUSPENDED</p><h2>Holding orbit.</h2><button onClick={() => runtimeRef.current?.resume()}>Resume flight</button></div>
