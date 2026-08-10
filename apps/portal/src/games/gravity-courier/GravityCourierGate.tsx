@@ -16,6 +16,9 @@ const initialTelemetry: GateTelemetry = {
   fps: 60,
   inputMode: "keyboard",
   callout: "",
+  steerX: 0,
+  steerY: 0,
+  steering: false,
 };
 
 export default function GravityCourierGate({ onExit }: Props) {
@@ -72,7 +75,7 @@ export default function GravityCourierGate({ onExit }: Props) {
       <header className="courier-hud top">
         <div className="courier-identity"><span className="live-dot" /> <b>VISUAL GATE 01</b><small>GRAVITY COURIER / ORBITAL LANE 04</small></div>
         <div className="courier-actions">
-          <span className="input-pill">{telemetry.inputMode}</span>
+          <span className={`input-pill ${telemetry.steering ? "active" : ""}`}>{telemetry.inputMode}{telemetry.steering ? " · steering" : ""}</span>
           <span className={`quality-pill ${telemetry.quality}`}>{telemetry.quality} · {telemetry.fps} fps</span>
           <button onClick={toggleMute}>{muted ? "Sound off" : "Sound on"}</button>
           <button onClick={togglePause}>{telemetry.phase === "paused" ? "Resume" : "Pause"}</button>
@@ -96,10 +99,15 @@ export default function GravityCourierGate({ onExit }: Props) {
         <div className="route-track"><i style={{ transform: `scaleX(${telemetry.progress})` }} /></div>
       </div>
 
-      <div className="courier-reticle" aria-hidden="true"><i /><i /></div>
+      <div className="courier-datum" aria-hidden="true" />
+      <div
+        className={`courier-flight-vector ${telemetry.steering ? "active" : ""}`}
+        style={{ left: `${50 + telemetry.steerX * 24}%`, top: `${50 - telemetry.steerY * 18}%` }}
+        aria-hidden="true"
+      ><i /><i /><span>VECTOR</span></div>
       <div className={`courier-callout ${telemetry.callout ? "visible" : ""}`} aria-live="polite">{telemetry.callout}</div>
 
-      <div className="courier-controls"><span>WASD / ARROWS / STICK</span> steer <b>·</b> <span>SPACE / A / TRIGGER</span> boost <b>·</b> <span>ESC</span> exit</div>
+      <div className="courier-controls"><span>WASD / ARROWS</span> steer <b>·</b> <span>DRAG / STICK</span> analog steer <b>·</b> <span>SPACE / A / TRIGGER</span> boost <b>·</b> <span>ESC</span> exit</div>
 
       {telemetry.phase === "paused" && (
         <div className="courier-state"><p>ROUTE SUSPENDED</p><h2>Holding orbit.</h2><button onClick={() => runtimeRef.current?.resume()}>Resume flight</button></div>

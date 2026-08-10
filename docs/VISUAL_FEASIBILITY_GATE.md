@@ -42,3 +42,11 @@ The candidate has passed strict TypeScript, contract tests, and the production b
 - introduces a multi-ring relay structure that approaches during the final route segment.
 
 Automatic downgrading is a safety net, not performance approval. Physical-device frame-time evidence remains mandatory.
+
+## Candidate 0.4 clarity and control pass
+
+- moves atmospheric fog into the far distance and reduces bloom, glow, grain and vignette weight;
+- raises scene contrast so the courier, hazards and relay remain readable at speed;
+- replaces the decorative centre reticle with a flight vector that follows the active steering target;
+- exposes normalized steering telemetry and visibly confirms active keyboard, pointer or gamepad input;
+- keeps WASD and arrow steering first in the on-screen control hierarchy.
