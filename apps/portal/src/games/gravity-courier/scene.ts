@@ -283,7 +283,7 @@ export async function createGravityCourierScene(
     const targetSpeed = complete ? 18 : boost ? 82 : 54;
     speed = Scalar.Lerp(speed, targetSpeed, 1 - Math.exp(-delta * 3.2));
     audio.setBoost(boost);
-    starfield.emitRate = (quality === "high" ? 420 : 190) * (boost ? 1.65 : 1);
+    starfield.emitRate = (quality === "high" ? 72 : 34) * (boost ? 1.12 : 1);
 
     if (!complete) {
       elapsed = Math.min(ROUTE_SECONDS, elapsed + delta);
@@ -782,26 +782,26 @@ function createStarfield(scene: Scene, emitter: TransformNode, quality: GateTele
   const texture = new DynamicTexture("star-sprite", { width: 64, height: 64 }, scene, false);
   const context = texture.getContext();
   const gradient = context.createRadialGradient(32, 32, 0, 32, 32, 32);
-  gradient.addColorStop(0, "rgba(255,255,255,1)");
-  gradient.addColorStop(0.15, "rgba(150,220,255,.9)");
+  gradient.addColorStop(0, "rgba(218,241,255,.62)");
+  gradient.addColorStop(0.15, "rgba(130,202,242,.3)");
   gradient.addColorStop(1, "rgba(30,120,255,0)");
   context.fillStyle = gradient;
   context.fillRect(0, 0, 64, 64);
   texture.update(false);
-  const particles = new ParticleSystem("route-stars", quality === "high" ? 1200 : 560, scene);
+  const particles = new ParticleSystem("route-stars", quality === "high" ? 280 : 140, scene);
   particles.particleTexture = texture;
   particles.emitter = emitter.position;
-  particles.minEmitBox = new Vector3(-30, -18, 18);
+  particles.minEmitBox = new Vector3(-30, -18, 34);
   particles.maxEmitBox = new Vector3(30, 18, 155);
-  particles.direction1 = new Vector3(-0.2, -0.1, -95);
-  particles.direction2 = new Vector3(0.2, 0.1, -125);
-  particles.minLifeTime = 1.4;
-  particles.maxLifeTime = 3.2;
-  particles.minSize = 0.025;
-  particles.maxSize = 0.16;
-  particles.emitRate = quality === "high" ? 420 : 190;
-  particles.color1 = new Color4(0.6, 0.84, 1, 0.75);
-  particles.color2 = new Color4(1, 0.62, 0.24, 0.55);
+  particles.direction1 = new Vector3(-0.12, -0.06, -72);
+  particles.direction2 = new Vector3(0.12, 0.06, -104);
+  particles.minLifeTime = 1.6;
+  particles.maxLifeTime = 2.8;
+  particles.minSize = 0.012;
+  particles.maxSize = 0.052;
+  particles.emitRate = quality === "high" ? 72 : 34;
+  particles.color1 = new Color4(0.62, 0.82, 1, 0.3);
+  particles.color2 = new Color4(0.88, 0.95, 1, 0.2);
   particles.colorDead = new Color4(0.1, 0.16, 0.25, 0);
   particles.updateSpeed = 0.012;
   particles.start();

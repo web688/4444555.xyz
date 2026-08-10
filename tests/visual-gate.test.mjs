@@ -13,7 +13,7 @@ test("Gravity Courier is lazy-loaded and version-aligned", async () => {
   assert.match(app, /lazy\(\(\) => import\("\.\/games\/gravity-courier\/GravityCourierGate"\)\)/);
   assert.equal(JSON.parse(portalPackage).dependencies["@babylonjs/core"], "9.20.0");
   assert.equal(JSON.parse(manifest).engine.version, "9.20.0");
-  assert.equal(JSON.parse(manifest).version, "0.10.0");
+  assert.equal(JSON.parse(manifest).version, "0.11.0");
 });
 
 test("visual candidate exposes lifecycle cleanup, clear depth and adaptive controls", async () => {
@@ -46,17 +46,27 @@ test("visual candidate exposes lifecycle cleanup, clear depth and adaptive contr
   }
   assert.match(gate, /courier-review-report/);
   assert.match(styles, /courier-review-report/);
+  for (const cue of [
+    'quality === "high" ? 280 : 140',
+    'quality === "high" ? 72 : 34',
+    'boost ? 1.12 : 1',
+    'particles.maxSize = 0.052',
+    'new Color4(0.62, 0.82, 1, 0.3)',
+  ]) {
+    assert.ok(scene.includes(cue), `missing restrained speed-cue setting ${cue}`);
+  }
+  assert.doesNotMatch(scene, /quality === "high" \? 420 : 190/);
 });
 
-test("Pages fallback contains candidate 0.10 evidence UI", async () => {
+test("Pages fallback contains candidate 0.11 evidence UI", async () => {
   const [index, loader, ...parts] = await Promise.all([
     read("../index.html"),
     read("../assets/arcade-loader.js"),
     ...Array.from({ length: 5 }, (_, index) => read(`../assets/arcade.part${String(index).padStart(2, "0")}.b64`)),
   ]);
   const bundle = parts.map((part) => Buffer.from(part.trim(), "base64").toString("utf8")).join("");
-  assert.match(index, /0\.10\.0/);
-  assert.match(loader, /release = "0\.10\.0"/);
+  assert.match(index, /0\.11\.0/);
+  assert.match(loader, /release = "0\.11\.0"/);
   assert.match(bundle, /RUN EVIDENCE/);
   assert.match(bundle, /Visual gate performance report/);
 });
