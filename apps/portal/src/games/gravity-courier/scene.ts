@@ -76,14 +76,11 @@ export async function createGravityCourierScene(
     { preserveDrawingBuffer: false, stencil: true, powerPreference: "high-performance" },
     true,
   );
-  engine.setHardwareScalingLevel(quality === "high" ? Math.max(1, window.devicePixelRatio / 1.45) : Math.max(1.35, window.devicePixelRatio / 1.1));
+  engine.setHardwareScalingLevel(1 / Math.min(window.devicePixelRatio, quality === "high" ? 2 : 1.5));
 
   const scene = new Scene(engine);
   scene.clearColor = new Color4(0.004, 0.006, 0.016, 1);
-  scene.fogMode = Scene.FOGMODE_LINEAR;
-  scene.fogColor = new Color3(0.004, 0.006, 0.016);
-  scene.fogStart = 140;
-  scene.fogEnd = quality === "high" ? 560 : 480;
+  scene.fogMode = Scene.FOGMODE_NONE;
   scene.imageProcessingConfiguration.toneMappingEnabled = true;
   scene.imageProcessingConfiguration.exposure = 1.12;
   scene.imageProcessingConfiguration.contrast = 1.42;
@@ -111,20 +108,12 @@ export async function createGravityCourierScene(
   rimLight.diffuse = new Color3(0.15, 0.75, 1);
 
   const glow = new GlowLayer("energy-glow", scene, { blurKernelSize: quality === "high" ? 48 : 24 });
-  glow.intensity = quality === "high" ? 0.5 : 0.34;
+  glow.intensity = quality === "high" ? 0.28 : 0.2;
   const pipeline = new DefaultRenderingPipeline("cinematic-pipeline", true, scene, [camera]);
-  pipeline.fxaaEnabled = true;
-  pipeline.bloomEnabled = true;
-  pipeline.bloomThreshold = 0.82;
-  pipeline.bloomWeight = quality === "high" ? 0.24 : 0.15;
-  pipeline.bloomKernel = quality === "high" ? 48 : 24;
-  pipeline.bloomScale = 0.5;
-  pipeline.chromaticAberrationEnabled = quality === "high" && !reducedMotion;
-  pipeline.grainEnabled = quality === "high";
-  if (pipeline.grain) {
-    pipeline.grain.intensity = 2.4;
-    pipeline.grain.animated = true;
-  }
+  pipeline.fxaaEnabled = false;
+  pipeline.bloomEnabled = false;
+  pipeline.chromaticAberrationEnabled = false;
+  pipeline.grainEnabled = false;
 
   const audio = new CourierAudio();
   void audio.arm();
@@ -205,13 +194,11 @@ export async function createGravityCourierScene(
       lowFpsSeconds = smoothedFps < 47 ? lowFpsSeconds + delta : Math.max(0, lowFpsSeconds - delta * 0.5);
       if (lowFpsSeconds > 2.4) {
         quality = "balanced";
-        engine.setHardwareScalingLevel(Math.max(1.35, window.devicePixelRatio / 1.1));
+        engine.setHardwareScalingLevel(1 / Math.min(window.devicePixelRatio, 1.25));
         pipeline.chromaticAberrationEnabled = false;
         pipeline.grainEnabled = false;
-        pipeline.bloomKernel = 24;
-        pipeline.bloomWeight = 0.15;
-        glow.intensity = 0.34;
-        scene.fogEnd = 480;
+        pipeline.bloomEnabled = false;
+        glow.intensity = 0.2;
         callout = "ADAPTIVE RENDERING · BALANCED";
         calloutSeconds = 2.2;
       }
@@ -244,12 +231,10 @@ export async function createGravityCourierScene(
       targetX = Scalar.Lerp(targetX, gamepadX * 8.3, 1 - Math.exp(-delta * 8));
       targetY = Scalar.Lerp(targetY, -gamepadY * 4.5, 1 - Math.exp(-delta * 8));
     } else {
-      targetX = Scalar.Clamp(targetX + horizontal * delta * 10.5, -8.3, 8.3);
-      targetY = Scalar.Clamp(targetY + vertical * delta * 8, -4.4, 4.4);
-      if (!horizontal) targetX = Scalar.Lerp(targetX, 0, delta * 0.22);
-      if (!vertical) targetY = Scalar.Lerp(targetY, 0, delta * 0.18);
+      targetX = Scalar.Clamp(targetX + horizontal * delta * 24, -8.3, 8.3);
+      targetY = Scalar.Clamp(targetY + vertical * delta * 18, -4.4, 4.4);
     }
-    const follow = 1 - Math.exp(-delta * 7.5);
+    const follow = 1 - Math.exp(-delta * 16);
     ship.position.x = Scalar.Lerp(ship.position.x, targetX, follow);
     ship.position.y = Scalar.Lerp(ship.position.y, targetY, follow);
     ship.rotation.z = Scalar.Lerp(ship.rotation.z, -(targetX - ship.position.x) * 0.23 - horizontal * 0.16, follow);
@@ -310,7 +295,7 @@ export async function createGravityCourierScene(
     if (calloutSeconds === 0 && !complete) callout = "";
     shake = Math.max(0, shake - delta * 1.9);
     scene.imageProcessingConfiguration.exposure = 1.12 + hitFlash * 0.65;
-    glow.intensity = (quality === "high" ? 0.5 : 0.34) + nearMissFlash * 0.48;
+    glow.intensity = (quality === "high" ? 0.28 : 0.2) + nearMissFlash * 0.34;
     shield.visibility = hitFlash * 0.82;
     const shieldPulse = 1 + (1 - hitFlash) * 0.24;
     shield.scaling.set(1.45 * shieldPulse, 0.7 * shieldPulse, shieldPulse);
@@ -323,7 +308,7 @@ export async function createGravityCourierScene(
     camera.setTarget(new Vector3(ship.position.x * 0.3, ship.position.y * 0.22, 31));
 
     const now = performance.now();
-    if (now - lastTelemetry > 90) {
+    if (now - lastTelemetry > 50) {
       lastTelemetry = now;
       onTelemetry({
         phase: complete ? "complete" : "running",
