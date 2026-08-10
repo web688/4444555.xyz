@@ -1,7 +1,7 @@
 {
   "$schema": "../schema/game-manifest.schema.json",
   "id": "gravity-courier",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "sdk": "0.1.0",
   "status": "visual-gate",
   "title": "Gravity Courier",
