@@ -13,6 +13,7 @@ test("Gravity Courier is lazy-loaded and version-aligned", async () => {
   assert.match(app, /lazy\(\(\) => import\("\.\/games\/gravity-courier\/GravityCourierGate"\)\)/);
   assert.equal(JSON.parse(portalPackage).dependencies["@babylonjs/core"], "9.20.0");
   assert.equal(JSON.parse(manifest).engine.version, "9.20.0");
+  assert.equal(JSON.parse(manifest).version, "0.9.0");
 });
 
 test("visual candidate exposes lifecycle cleanup, clear depth and adaptive controls", async () => {
@@ -35,6 +36,8 @@ test("visual candidate exposes lifecycle cleanup, clear depth and adaptive contr
   assert.match(scene, /starCount = quality === "high" \? 1450 : 720/);
   assert.match(scene, /material\.emissiveColor = Color3\.Black\(\)/);
   assert.doesNotMatch(scene, /material\.emissiveColor = new Color3\(0\.92, 0\.96, 1\)/);
+  assert.match(scene, /new Color3\\(0\\.34, 0\\.36, 0\\.4\\), 0\\.48, 0\\.58/);
+  assert.doesNotMatch(scene, /new Color3\\(0\\.12, 0\\.1, 0\\.09\\), 0\\.95, 0\\.34/);
   assert.match(scene, /steerX: Scalar\.Clamp/);
   assert.match(gate, /courier-flight-vector/);
   assert.match(styles, /courier-flight-vector/);
