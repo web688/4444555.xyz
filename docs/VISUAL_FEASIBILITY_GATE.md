@@ -59,3 +59,12 @@ Automatic downgrading is a safety net, not performance approval. Physical-device
 - more than doubles keyboard steering speed and doubles ship follow response;
 - stops automatic recentring when keys are released so keyboard movement ends immediately and predictably;
 - increases steering-vector telemetry from roughly 11 to 20 updates per second.
+
+## Candidate 0.6 direct-control pass
+
+- replaces the persistent hidden keyboard destination with a short directional lead anchored to the ship every frame;
+- reverses immediately when the player changes from left to right or right to left;
+- stops lateral movement immediately when keyboard or pointer input ends;
+- applies the same direction-first behavior to analog gamepad steering;
+- separates gamepad boost from steering so boost alone cannot pull the ship toward centre;
+- clears keyboard and pointer state on window blur or visibility loss to prevent stuck directions.

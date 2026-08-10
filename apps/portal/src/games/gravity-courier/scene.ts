@@ -150,7 +150,7 @@ export async function createGravityCourierScene(
 
   const onKeyDown = (event: KeyboardEvent) => {
     pressed.add(event.code);
-    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
+    if (["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) event.preventDefault();
     void audio.arm();
     inputMode = "keyboard";
   };
@@ -167,12 +167,26 @@ export async function createGravityCourierScene(
   };
   const onPointerUp = (event: PointerEvent) => {
     pointerTarget.active = false;
+    targetX = ship.position.x;
+    targetY = ship.position.y;
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
   };
   const onVisibility = () => {
-    if (document.hidden) pause();
+    if (document.hidden) {
+      clearActiveInput();
+      pause();
+    }
   };
+  const onBlur = () => clearActiveInput();
   const onResize = () => engine.resize();
+
+  function clearActiveInput() {
+    pressed.clear();
+    pointerTarget.active = false;
+    targetX = ship.position.x;
+    targetY = ship.position.y;
+    audio.setBoost(false);
+  }
 
   function setPointerTarget(event: PointerEvent) {
     const bounds = canvas.getBoundingClientRect();
@@ -186,7 +200,8 @@ export async function createGravityCourierScene(
     const gamepadX = Math.abs(activeGamepad?.axes[0] ?? 0) > 0.12 ? activeGamepad?.axes[0] ?? 0 : 0;
     const gamepadY = Math.abs(activeGamepad?.axes[1] ?? 0) > 0.12 ? activeGamepad?.axes[1] ?? 0 : 0;
     const gamepadBoost = Boolean(activeGamepad?.buttons[0]?.pressed || (activeGamepad?.buttons[7]?.value ?? 0) > 0.35);
-    const gamepadActive = Math.abs(gamepadX) > 0 || Math.abs(gamepadY) > 0 || gamepadBoost;
+    const gamepadSteering = Math.abs(gamepadX) > 0 || Math.abs(gamepadY) > 0;
+    const gamepadActive = gamepadSteering || gamepadBoost;
     if (gamepadActive) inputMode = "gamepad";
 
     smoothedFps = Scalar.Lerp(smoothedFps, 1 / Math.max(delta, 0.001), 0.045);
@@ -221,20 +236,17 @@ export async function createGravityCourierScene(
       }
     }
 
-    const horizontal = gamepadActive ? gamepadX : Number(pressed.has("KeyD") || pressed.has("ArrowRight")) - Number(pressed.has("KeyA") || pressed.has("ArrowLeft"));
-    const vertical = gamepadActive ? -gamepadY : Number(pressed.has("KeyW") || pressed.has("ArrowUp")) - Number(pressed.has("KeyS") || pressed.has("ArrowDown"));
-    const steering = pointerTarget.active || gamepadActive || horizontal !== 0 || vertical !== 0;
+    const horizontal = gamepadSteering ? gamepadX : Number(pressed.has("KeyD") || pressed.has("ArrowRight")) - Number(pressed.has("KeyA") || pressed.has("ArrowLeft"));
+    const vertical = gamepadSteering ? -gamepadY : Number(pressed.has("KeyW") || pressed.has("ArrowUp")) - Number(pressed.has("KeyS") || pressed.has("ArrowDown"));
+    const steering = pointerTarget.active || gamepadSteering || horizontal !== 0 || vertical !== 0;
     if (pointerTarget.active) {
       targetX = pointerTarget.x * 8.3;
       targetY = pointerTarget.y * 4.5;
-    } else if (gamepadActive) {
-      targetX = Scalar.Lerp(targetX, gamepadX * 8.3, 1 - Math.exp(-delta * 8));
-      targetY = Scalar.Lerp(targetY, -gamepadY * 4.5, 1 - Math.exp(-delta * 8));
     } else {
-      targetX = Scalar.Clamp(targetX + horizontal * delta * 24, -8.3, 8.3);
-      targetY = Scalar.Clamp(targetY + vertical * delta * 18, -4.4, 4.4);
+      targetX = Scalar.Clamp(ship.position.x + horizontal * 1.35, -8.3, 8.3);
+      targetY = Scalar.Clamp(ship.position.y + vertical * 1, -4.4, 4.4);
     }
-    const follow = 1 - Math.exp(-delta * 16);
+    const follow = 1 - Math.exp(-delta * 20);
     ship.position.x = Scalar.Lerp(ship.position.x, targetX, follow);
     ship.position.y = Scalar.Lerp(ship.position.y, targetY, follow);
     ship.rotation.z = Scalar.Lerp(ship.rotation.z, -(targetX - ship.position.x) * 0.23 - horizontal * 0.16, follow);
@@ -383,6 +395,7 @@ export async function createGravityCourierScene(
     engine.stopRenderLoop(render);
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);
+    window.removeEventListener("blur", onBlur);
     window.removeEventListener("resize", onResize);
     document.removeEventListener("visibilitychange", onVisibility);
     canvas.removeEventListener("pointerdown", onPointerDown);
@@ -396,6 +409,7 @@ export async function createGravityCourierScene(
 
   window.addEventListener("keydown", onKeyDown, { passive: false });
   window.addEventListener("keyup", onKeyUp);
+  window.addEventListener("blur", onBlur);
   window.addEventListener("resize", onResize);
   document.addEventListener("visibilitychange", onVisibility);
   canvas.addEventListener("pointerdown", onPointerDown);
