@@ -1,10 +1,11 @@
+const release = "0.5.0";
 const payloads = Array.from({ length: 5 }, (_, index) =>
-  `/assets/arcade.part${String(index).padStart(2, "0")}.b64`
+  `/assets/arcade.part${String(index).padStart(2, "0")}.b64?v=${release}`
 );
 
 Promise.all(
   payloads.map(async (path) => {
-    const response = await fetch(path, { cache: "force-cache" });
+    const response = await fetch(path, { cache: "no-cache" });
     if (!response.ok) throw new Error(`Unable to load ${path}: ${response.status}`);
     const binary = atob((await response.text()).trim());
     const bytes = new Uint8Array(binary.length);
