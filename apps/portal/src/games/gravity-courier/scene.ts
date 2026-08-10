@@ -555,7 +555,7 @@ function createOrbitalLane(scene: Scene, quality: GateTelemetry["quality"]) {
 }
 
 function createObstacles(scene: Scene, quality: GateTelemetry["quality"]) {
-  const metal = pbr(scene, "hazard-metal", new Color3(0.12, 0.1, 0.09), 0.95, 0.34);
+  const metal = pbr(scene, "hazard-metal", new Color3(0.34, 0.36, 0.4), 0.48, 0.58);
   const hot = emissive(scene, "hazard-hot", new Color3(1, 0.22, 0.035), 1.25);
   const count = quality === "high" ? 10 : 7;
   const obstacles: Obstacle[] = [];

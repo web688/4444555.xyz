@@ -1,8 +1,10 @@
 # Gravity Courier visual review record
 
-Candidate: `0.8.0`  
+Candidate: `0.9.0`  
 Reference: user-supplied YouTube sequence around 03:40  
 Status: **awaiting captured review**
+
+Current review focus: confirm that complete gray hazard silhouettes are readable at distance against black space, not only when backed by the planet or seen at close range.
 
 ## Review matrix
 
