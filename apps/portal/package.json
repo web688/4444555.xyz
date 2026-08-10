@@ -8,6 +8,7 @@
     "build": "vite build"
   },
   "dependencies": {
+    "@babylonjs/core": "9.20.0",
     "@vitejs/plugin-react": "5.0.4",
     "vite": "7.1.12",
     "react": "19.2.0",
