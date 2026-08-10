@@ -1,10 +1,12 @@
 # Gravity Courier visual review record
 
-Candidate: `0.9.0`  
+Candidate: `0.10.0`  
 Reference: user-supplied YouTube sequence around 03:40  
 Status: **awaiting captured review**
 
-Current review focus: confirm that complete gray hazard silhouettes are readable at distance against black space, not only when backed by the planet or seen at close range.
+Owner acceptance: candidate 0.9 distant obstacle visibility is “much better”; the accepted controls, background and hazard treatment are frozen for this evidence pass.
+
+Current review focus: complete one desktop and one mobile route, then capture the end-of-run evidence report with the device/browser named.
 
 ## Review matrix
 
