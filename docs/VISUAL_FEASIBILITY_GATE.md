@@ -90,3 +90,11 @@ Automatic downgrading is a safety net, not performance approval. Physical-device
 - replaces the near-black, 95%-metallic obstacle surface with a lighter cool gunmetal that receives the existing ambient and key lighting;
 - reduces metallic response and increases roughness so the complete obstacle silhouette remains readable before close approach;
 - preserves orange strictly as the warning accent and leaves the accepted background and direct controls unchanged.
+
+## Candidate 0.10 evidence-report pass
+
+- records active-route frame times after the first-second warmup and computes average FPS, one-percent-low FPS, P95/P99 frame time and the percentage of frames exceeding 33 ms;
+- captures render resolution, CSS viewport, device-pixel ratio, active quality tier, browser, platform, logical processor count, reported device memory and reduced-motion state;
+- presents the results in a screenshot-ready end-of-run report on desktop and mobile;
+- resets samples on each run and keeps reporting local to the browser; no device data is transmitted or persisted;
+- adds evidence instrumentation without changing the accepted controls, background, obstacle materials or gameplay.
