@@ -1,6 +1,6 @@
 # Gravity Courier visual review record
 
-Candidate: `0.6.0`  
+Candidate: `0.7.0`  
 Reference: user-supplied YouTube sequence around 03:40  
 Status: **awaiting captured review**
 
