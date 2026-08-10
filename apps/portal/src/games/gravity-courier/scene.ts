@@ -685,7 +685,7 @@ function createDeepSpaceBackdrop(scene: Scene, quality: GateTelemetry["quality"]
   const material = new StandardMaterial("deep-space-backdrop-material", scene);
   material.disableLighting = true;
   material.diffuseColor = Color3.Black();
-  material.emissiveColor = new Color3(0.92, 0.96, 1);
+  material.emissiveColor = Color3.Black();
   material.emissiveTexture = texture;
   material.specularColor = Color3.Black();
   material.backFaceCulling = false;
