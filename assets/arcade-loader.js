@@ -1,4 +1,4 @@
-const release = "0.10.0";
+const release = "0.11.0";
 const payloads = Array.from({ length: 5 }, (_, index) =>
   `/assets/arcade.part${String(index).padStart(2, "0")}.b64?v=${release}`
 );

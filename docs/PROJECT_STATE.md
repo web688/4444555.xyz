@@ -1,6 +1,6 @@
 # Project state — 4444555 Arcade
 
-Updated: 2026-08-10, after owner acceptance of candidate 0.9 obstacle visibility and preparation of candidate 0.10 evidence capture.
+Updated: 2026-08-10, after six owner test runs on candidate 0.10 and preparation of candidate 0.11 to restrain foreground speed particles.
 
 This is the durable handoff for continuing the project in a new conversation. Repository state is authoritative when it is newer than this document.
 
@@ -29,7 +29,7 @@ The platform must make it straightforward to add games and later show player sco
   - Gravity Courier — playable visual candidate.
   - Echo Vector — concept.
   - Prism Siege — concept.
-- Gravity Courier manifest: candidate `0.10.0`, status `visual-gate`.
+- Gravity Courier manifest: candidate `0.11.0`, status `visual-gate`.
 - Source: `apps/portal/src/games/gravity-courier/`.
 - Manifest: `catalog/manifests/gravity-courier.json`.
 - Quality evidence: `docs/VISUAL_FEASIBILITY_GATE.md` and `docs/VISUAL_REVIEW.md`.
@@ -72,11 +72,12 @@ Candidate 0.9 replaces the near-black, 95%-metallic hazard material with lighter
 
 ## Repository state at this handoff
 
-- Integration baseline before candidate 0.10: `main@08edeba66af14e9c8a0cfb476715522bc9fae4eb`.
-- PRs #1 through #12 were merged before the candidate 0.10 change.
+- Integration baseline before candidate 0.11: `main@08210b89346a55f5c4edf66437fffa17afdfc923`.
+- PRs #1 through #13 were merged before the candidate 0.11 change.
 - No open pull requests or issues existed at inspection time.
 - The latest PR verification completed successfully.
-- Candidate 0.10 adds local end-of-run performance evidence while preserving the accepted scene and synchronizes source, manifest, fallback assets, documentation and regression checks.
+- Candidate 0.10 added local end-of-run performance evidence while preserving the accepted scene.
+- Candidate 0.11 restrains the separate foreground route-particle layer while preserving the procedural background, controls, hazards and gameplay.
 
 This handoff change itself will be newer than the gameplay baseline above. Future conversations must inspect recent GitHub history rather than assuming this SHA is still the repository head.
 
@@ -86,9 +87,17 @@ Candidate 0.10 automatically samples active-route frame times after a one-second
 
 This instrumentation is the next formal gate step; it does not change gameplay or claim that desktop/mobile performance has passed.
 
+## Candidate 0.11 foreground speed-cue correction
+
+The owner completed three candidate 0.10 routes on desktop and three on mobile. That is enough repetition to establish functional consistency, but the report screenshots or values were not supplied, so performance cannot yet be recorded as passed.
+
+The owner reported that the separate near-field `route-stars` particle system looked like snowflakes flying toward the camera, creating a snowstorm that made the route hard to see. Candidate 0.11 reduces capacity and emission by roughly 75–83%, reduces maximum particle size from `0.16` to `0.052`, lowers alpha, removes the warm particle colour that could compete with hazard accents, moves initial emission farther from the camera, and limits the boost density increase. The accepted procedural backdrop is unchanged.
+
 ## Visual gate status
 
 Gravity Courier is still a 30-second interactive feasibility slice, not a completed game. It includes steering, boost, obstacles, near misses, collisions, scoring, integrity, a relay finale, procedural sound, restart/teardown, adaptive high/balanced tiers, and keyboard/touch/gamepad support.
+
+The owner has completed three full routes on desktop and three on mobile. These runs establish repeated playability, but the performance report values, named devices/browsers and lifecycle evidence are still required for formal gate approval.
 
 The visual gate remains formally pending until the review record contains named device/browser evidence for:
 
@@ -112,4 +121,4 @@ Do not silently promote Gravity Courier into full production or mark the visual 
 
 ## What happens next
 
-After candidate 0.10 deploys, the owner should complete one desktop route and one mobile route and provide screenshots of the end-of-run evidence reports. Record the named device/browser results in `docs/VISUAL_REVIEW.md`, then address any failed gate dimension or authorize the next production phase. Preserve the accepted controls, background and obstacle treatment.
+After candidate 0.11 deploys, the owner should confirm that the foreground particles no longer obscure the route and provide one desktop and one mobile end-of-run report screenshot (or the displayed values plus device/browser names). Record those results in `docs/VISUAL_REVIEW.md`, then address any remaining failed gate dimension or authorize the next production phase. Preserve the accepted controls, procedural background and obstacle treatment.

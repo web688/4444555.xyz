@@ -98,3 +98,11 @@ Automatic downgrading is a safety net, not performance approval. Physical-device
 - presents the results in a screenshot-ready end-of-run report on desktop and mobile;
 - resets samples on each run and keeps reporting local to the browser; no device data is transmitted or persisted;
 - adds evidence instrumentation without changing the accepted controls, background, obstacle materials or gameplay.
+
+## Candidate 0.11 restrained-speed-cue pass
+
+- responds to the owner’s six-run observation that near-field route particles read as snowflakes and obscured the scene;
+- reduces route-particle capacity and emission by roughly 75–83%, with only a small boost increase;
+- reduces maximum sprite size from `0.16` to `0.052`, lowers opacity and removes the warm particle colour that competed with orange hazard warnings;
+- begins emission farther from the camera so particles remain peripheral motion cues rather than close foreground flakes;
+- preserves the accepted procedural deep-space backdrop, sharp rendering, direct controls, obstacle materials and gameplay.
