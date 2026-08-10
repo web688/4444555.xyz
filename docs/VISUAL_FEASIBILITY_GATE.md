@@ -50,3 +50,12 @@ Automatic downgrading is a safety net, not performance approval. Physical-device
 - replaces the decorative centre reticle with a flight vector that follows the active steering target;
 - exposes normalized steering telemetry and visibly confirms active keyboard, pointer or gamepad input;
 - keeps WASD and arrow steering first in the on-screen control hierarchy.
+
+## Candidate 0.5 sharpness and response pass
+
+- renders at native or device-density-aware resolution instead of an intentionally downscaled canvas;
+- removes scene fog and disables full-screen FXAA, bloom, grain and chromatic aberration;
+- retains restrained object-local energy glow without softening the complete image;
+- more than doubles keyboard steering speed and doubles ship follow response;
+- stops automatic recentring when keys are released so keyboard movement ends immediately and predictably;
+- increases steering-vector telemetry from roughly 11 to 20 updates per second.
