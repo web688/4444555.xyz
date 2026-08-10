@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { recordCourierRun, type CourierRunResult } from "./progress";
 import { createGravityCourierScene, type GateRuntime, type GateTelemetry } from "./scene";
 import "./gravity-courier.css";
 
 type Props = { onExit: () => void };
 
 const initialTelemetry: GateTelemetry = {
-  phase: "running",
+  phase: "ready",
   elapsed: 0,
   progress: 0,
   score: 0,
@@ -19,13 +20,24 @@ const initialTelemetry: GateTelemetry = {
   steerX: 0,
   steerY: 0,
   steering: false,
+  remaining: 120,
+  sector: 1,
+  nearMisses: 0,
+  collisions: 0,
+  maxMultiplier: 1,
+  routeKey: "",
   report: null,
 };
+
+type RecordedOutcome = { run: CourierRunResult; isNewBest: boolean };
 
 export default function GravityCourierGate({ onExit }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const runtimeRef = useRef<GateRuntime | null>(null);
+  const savedRunRef = useRef("");
   const [telemetry, setTelemetry] = useState(initialTelemetry);
+  const [outcome, setOutcome] = useState<RecordedOutcome | null>(null);
+  const [runtimeReady, setRuntimeReady] = useState(false);
   const [muted, setMuted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,7 +52,10 @@ export default function GravityCourierGate({ onExit }: Props) {
       if (!cancelled) setTelemetry(next);
     }).then((runtime) => {
       if (cancelled) runtime.destroy();
-      else runtimeRef.current = runtime;
+      else {
+        runtimeRef.current = runtime;
+        setRuntimeReady(true);
+      }
     }).catch((reason: unknown) => {
       if (!cancelled) setError(reason instanceof Error ? reason.message : "The 3D scene could not start.");
     });
@@ -59,6 +74,25 @@ export default function GravityCourierGate({ onExit }: Props) {
     };
   }, [onExit]);
 
+  useEffect(() => {
+    if (telemetry.phase !== "complete" && telemetry.phase !== "failed") return;
+    const runKey = `${telemetry.report?.runNumber ?? 0}:${telemetry.phase}`;
+    if (savedRunRef.current === runKey) return;
+    savedRunRef.current = runKey;
+    const recorded = recordCourierRun({
+      routeKey: telemetry.routeKey,
+      score: telemetry.score,
+      completed: telemetry.phase === "complete",
+      durationSeconds: Math.round(telemetry.elapsed),
+      integrity: telemetry.integrity,
+      nearMisses: telemetry.nearMisses,
+      collisions: telemetry.collisions,
+      maxMultiplier: telemetry.maxMultiplier,
+      sector: telemetry.sector,
+    });
+    setOutcome({ run: recorded.run, isNewBest: recorded.isNewBest });
+  }, [telemetry]);
+
   const togglePause = () => {
     if (telemetry.phase === "paused") runtimeRef.current?.resume();
     else runtimeRef.current?.pause();
@@ -68,18 +102,30 @@ export default function GravityCourierGate({ onExit }: Props) {
     setMuted(next);
     runtimeRef.current?.setMuted(next);
   };
+  const beginRun = () => {
+    runtimeRef.current?.start();
+    canvasRef.current?.focus();
+  };
+  const retry = () => {
+    setOutcome(null);
+    runtimeRef.current?.restart();
+    canvasRef.current?.focus();
+  };
+
+  const ended = telemetry.phase === "complete" || telemetry.phase === "failed";
+  const medal = outcome?.run.medal ?? (telemetry.phase === "complete" ? "bronze" : "none");
 
   return (
-    <section className="courier-gate" aria-label="Gravity Courier visual quality gate">
-      <canvas ref={canvasRef} className="courier-canvas" tabIndex={0} aria-label="Interactive orbital flight scene. Use WASD or arrow keys to steer and Space to boost." />
+    <section className="courier-gate" aria-label="Gravity Courier production flight">
+      <canvas ref={canvasRef} className="courier-canvas" tabIndex={0} aria-label="Gravity Courier. Use WASD or arrow keys to steer and Space to boost." />
       <div className="courier-vignette" aria-hidden="true" />
       <header className="courier-hud top">
-        <div className="courier-identity"><span className="live-dot" /> <b>VISUAL GATE 01</b><small>GRAVITY COURIER / ORBITAL LANE 04</small></div>
+        <div className="courier-identity"><span className="live-dot" /> <b>PRODUCTION FLIGHT 01</b><small>GRAVITY COURIER / DAILY ROUTE {telemetry.routeKey || "SYNCING"}</small></div>
         <div className="courier-actions">
           <span className={`input-pill ${telemetry.steering ? "active" : ""}`}>{telemetry.inputMode}{telemetry.steering ? " · steering" : ""}</span>
           <span className={`quality-pill ${telemetry.quality}`}>{telemetry.quality} · {telemetry.fps} fps</span>
           <button onClick={toggleMute}>{muted ? "Sound off" : "Sound on"}</button>
-          <button onClick={togglePause}>{telemetry.phase === "paused" ? "Resume" : "Pause"}</button>
+          {(telemetry.phase === "running" || telemetry.phase === "paused") && <button onClick={togglePause}>{telemetry.phase === "paused" ? "Resume" : "Pause"}</button>}
           <button className="courier-close" onClick={onExit} aria-label="Exit Gravity Courier">×</button>
         </div>
       </header>
@@ -96,55 +142,46 @@ export default function GravityCourierGate({ onExit }: Props) {
       </div>
 
       <div className="courier-route">
-        <div><span>LAUNCH</span><span>{Math.ceil(30 - telemetry.elapsed).toString().padStart(2, "0")} SEC</span><span>RELAY</span></div>
+        <div><span>SECTOR {telemetry.sector} / 4</span><span>{telemetry.remaining.toString().padStart(3, "0")} SEC</span><span>RELAY</span></div>
         <div className="route-track"><i style={{ transform: `scaleX(${telemetry.progress})` }} /></div>
       </div>
 
       <div className="courier-datum" aria-hidden="true" />
-      <div
-        className={`courier-flight-vector ${telemetry.steering ? "active" : ""}`}
-        style={{ left: `${50 + telemetry.steerX * 24}%`, top: `${50 - telemetry.steerY * 18}%` }}
-        aria-hidden="true"
-      ><i /><i /><span>VECTOR</span></div>
+      <div className={`courier-flight-vector ${telemetry.steering ? "active" : ""}`} style={{ left: `${50 + telemetry.steerX * 24}%`, top: `${50 - telemetry.steerY * 18}%` }} aria-hidden="true"><i /><i /><span>VECTOR</span></div>
       <div className={`courier-callout ${telemetry.callout ? "visible" : ""}`} aria-live="polite">{telemetry.callout}</div>
 
       <div className="courier-controls"><span>WASD / ARROWS</span> steer <b>·</b> <span>DRAG / STICK</span> analog steer <b>·</b> <span>SPACE / A / TRIGGER</span> boost <b>·</b> <span>ESC</span> exit</div>
+
+      {telemetry.phase === "ready" && (
+        <div className="courier-state ready">
+          <p>DAILY ROUTE {telemetry.routeKey || "CALIBRATING"}</p>
+          <h2>Deliver the signal.</h2>
+          <div className="courier-briefing">
+            <span><b>120 SEC</b> four escalating sectors</span>
+            <span><b>3 HULL</b> collision ends the chain</span>
+            <span><b>×12</b> near-miss multiplier</span>
+          </div>
+          <button onClick={beginRun} disabled={!runtimeReady}>{runtimeReady ? "Launch courier" : "Calibrating…"}</button>
+        </div>
+      )}
 
       {telemetry.phase === "paused" && (
         <div className="courier-state"><p>ROUTE SUSPENDED</p><h2>Holding orbit.</h2><button onClick={() => runtimeRef.current?.resume()}>Resume flight</button></div>
       )}
 
-      {telemetry.phase === "complete" && (
-        <div className="courier-state complete">
-          <p>RELAY REACHED</p>
-          <h2>Transmission delivered.</h2>
+      {ended && (
+        <div className={`courier-state result ${telemetry.phase}`}>
+          <p>{telemetry.phase === "complete" ? "RELAY REACHED" : `SIGNAL LOST · SECTOR ${telemetry.sector}`}</p>
+          <h2>{telemetry.phase === "complete" ? "Transmission delivered." : "Courier destroyed."}</h2>
+          <div className={`courier-medal ${medal}`}><i />{medal === "none" ? "NO MEDAL" : `${medal.toUpperCase()} DELIVERY`}{outcome?.isNewBest && <em>NEW BEST</em>}</div>
           <div className="courier-result-score"><span>Final score</span><strong>{telemetry.score.toLocaleString("en-US")}</strong></div>
-          {telemetry.report && (
-            <section className="courier-review-report" aria-label="Visual gate performance report">
-              <header><strong>RUN EVIDENCE</strong><span>RUN {telemetry.report.runNumber.toString().padStart(2, "0")} · {telemetry.report.sampleCount} SAMPLES</span></header>
-              <div className="courier-review-grid">
-                {[
-                  ["AVERAGE", `${telemetry.report.averageFps} FPS`],
-                  ["1% LOW", `${telemetry.report.onePercentLowFps} FPS`],
-                  ["P95 FRAME", `${telemetry.report.p95FrameMs} MS`],
-                  ["P99 FRAME", `${telemetry.report.p99FrameMs} MS`],
-                  [">33 MS", `${telemetry.report.slowFramePercent}%`],
-                  ["RENDER", `${telemetry.report.renderWidth}×${telemetry.report.renderHeight}`],
-                ].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}
-              </div>
-              <footer>
-                <span>{telemetry.report.quality.toUpperCase()} TIER</span>
-                <span>{telemetry.report.browser}</span>
-                <span>{telemetry.report.platform}</span>
-                <span>{telemetry.report.viewportWidth}×{telemetry.report.viewportHeight} VIEWPORT</span>
-                <span>DPR {telemetry.report.devicePixelRatio}</span>
-                <span>{telemetry.report.hardwareConcurrency || "?"} THREADS</span>
-                {telemetry.report.deviceMemoryGb !== null && <span>{telemetry.report.deviceMemoryGb} GB MEMORY</span>}
-                {telemetry.report.reducedMotion && <span>REDUCED MOTION</span>}
-              </footer>
-            </section>
-          )}
-          <button onClick={() => runtimeRef.current?.restart()}>Fly again</button>
+          <div className="courier-run-stats">
+            <span><small>NEAR MISSES</small><strong>{telemetry.nearMisses}</strong></span>
+            <span><small>MAX CHAIN</small><strong>×{telemetry.maxMultiplier}</strong></span>
+            <span><small>COLLISIONS</small><strong>{telemetry.collisions}</strong></span>
+            <span><small>FLIGHT TIME</small><strong>{Math.round(telemetry.elapsed)}S</strong></span>
+          </div>
+          <button onClick={retry}>Fly again</button>
           <button className="secondary" onClick={onExit}>Return to arcade</button>
         </div>
       )}
@@ -153,7 +190,7 @@ export default function GravityCourierGate({ onExit }: Props) {
         <div className="courier-state error"><p>RENDERER OFFLINE</p><h2>Unable to enter orbit.</h2><span>{error}</span><button onClick={onExit}>Return to arcade</button></div>
       )}
 
-      <p className="gate-disclaimer">Interactive visual candidate · not a final game · performance approval pending physical-device review</p>
+      <p className="gate-disclaimer">Production gameplay batch 01 · daily route and progress are stored on this device</p>
     </section>
   );
 }

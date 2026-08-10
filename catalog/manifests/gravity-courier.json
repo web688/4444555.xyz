@@ -1,21 +1,21 @@
 {
   "$schema": "../schema/game-manifest.schema.json",
   "id": "gravity-courier",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "sdk": "0.1.0",
-  "status": "visual-gate",
+  "status": "prototype",
   "title": "Gravity Courier",
   "summary": "Precision orbital flight built around near misses, route mastery, and daily seeded runs.",
   "engine": { "name": "Babylon.js", "version": "9.20.0", "rendering": "webgl-adaptive" },
   "entry": "/src/games/gravity-courier/GravityCourierGate.tsx",
   "presentation": { "orientation": "landscape", "aspectRatio": "16:9", "accent": "#f6bd52" },
   "input": ["keyboard", "touch", "gamepad"],
-  "sessions": { "minimumSeconds": 90, "targetSeconds": 180, "maximumSeconds": 360 },
+  "sessions": { "minimumSeconds": 30, "targetSeconds": 120, "maximumSeconds": 180 },
   "assets": { "initialBytes": 15728640, "totalBytes": 83886080 },
-  "scores": { "mode": "higher-is-better", "ruleset": "route-v1", "validation": "run-ticket-deterministic-replay" },
+  "scores": { "mode": "higher-is-better", "ruleset": "route-v2", "validation": "local-deterministic-route" },
   "achievements": [
     { "id": "first-delivery", "title": "Signed, Sealed, Orbital", "target": 1 },
-    { "id": "near-miss-chain-10", "title": "Thread the Needle", "target": 10 }
+    { "id": "near-miss-chain-12", "title": "Thread the Needle", "target": 12 }
   ],
   "save": { "schemaVersion": 1, "maximumBytes": 65536 }
 }

@@ -13,16 +13,18 @@ test("Gravity Courier is lazy-loaded and version-aligned", async () => {
   assert.match(app, /lazy\(\(\) => import\("\.\/games\/gravity-courier\/GravityCourierGate"\)\)/);
   assert.equal(JSON.parse(portalPackage).dependencies["@babylonjs/core"], "9.20.0");
   assert.equal(JSON.parse(manifest).engine.version, "9.20.0");
-  assert.equal(JSON.parse(manifest).version, "0.11.0");
+  assert.equal(JSON.parse(manifest).version, "0.12.0");
+  assert.equal(JSON.parse(manifest).status, "prototype");
 });
 
-test("visual candidate exposes lifecycle cleanup, clear depth and adaptive controls", async () => {
-  const [scene, gate, styles] = await Promise.all([
+test("production flight preserves accepted visuals and exposes a complete game loop", async () => {
+  const [scene, gate, styles, progress] = await Promise.all([
     read("../apps/portal/src/games/gravity-courier/scene.ts"),
     read("../apps/portal/src/games/gravity-courier/GravityCourierGate.tsx"),
     read("../apps/portal/src/games/gravity-courier/gravity-courier.css"),
+    read("../apps/portal/src/games/gravity-courier/progress.ts"),
   ]);
-  for (const capability of ["pause()", "resume()", "restart()", "destroy()", "prefers-reduced-motion", "pointerdown", "keydown", "getGamepads", "lowFpsSeconds", "createRelayGate"]) {
+  for (const capability of ["start()", "pause()", "resume()", "restart()", "destroy()", "prefers-reduced-motion", "pointerdown", "keydown", "getGamepads", "lowFpsSeconds", "createRelayGate"]) {
     assert.ok(scene.includes(capability), `missing ${capability}`);
   }
   assert.match(scene, /scene\.fogMode = Scene\.FOGMODE_NONE/);
@@ -44,8 +46,19 @@ test("visual candidate exposes lifecycle cleanup, clear depth and adaptive contr
   for (const evidence of ["frameTimes", "buildReport()", "onePercentLowFps", "p95FrameMs", "p99FrameMs", "slowFramePercent", "deviceMemoryGb", "runNumber"]) {
     assert.ok(scene.includes(evidence), `missing evidence field ${evidence}`);
   }
-  assert.match(gate, /courier-review-report/);
-  assert.match(styles, /courier-review-report/);
+  assert.match(scene, /GRAVITY_COURIER_ROUTE_SECONDS/);
+  assert.match(scene, /failed = true/);
+  assert.match(scene, /SECTOR_SECONDS/);
+  assert.match(scene, /createSeededRandom/);
+  assert.match(scene, /Math\.min\(12, multiplier \+ 1\)/);
+  assert.match(gate, /recordCourierRun/);
+  assert.match(gate, /courier-run-stats/);
+  assert.match(gate, /Fly again/);
+  assert.match(styles, /courier-medal/);
+  assert.match(progress, /GRAVITY_COURIER_ROUTE_SECONDS = 120/);
+  assert.match(progress, /MAX_RECENT_RUNS = 8/);
+  assert.match(progress, /score >= 32_000 && integrity >= 2/);
+  assert.match(progress, /GRAVITY_COURIER_PROGRESS_EVENT/);
   for (const cue of [
     'quality === "high" ? 280 : 140',
     'quality === "high" ? 72 : 34',
@@ -58,15 +71,16 @@ test("visual candidate exposes lifecycle cleanup, clear depth and adaptive contr
   assert.doesNotMatch(scene, /quality === "high" \? 420 : 190/);
 });
 
-test("Pages fallback contains candidate 0.11 evidence UI", async () => {
+test("Pages fallback contains production gameplay batch 0.12", async () => {
   const [index, loader, ...parts] = await Promise.all([
     read("../index.html"),
     read("../assets/arcade-loader.js"),
     ...Array.from({ length: 5 }, (_, index) => read(`../assets/arcade.part${String(index).padStart(2, "0")}.b64`)),
   ]);
   const bundle = parts.map((part) => Buffer.from(part.trim(), "base64").toString("utf8")).join("");
-  assert.match(index, /0\.11\.0/);
-  assert.match(loader, /release = "0\.11\.0"/);
-  assert.match(bundle, /RUN EVIDENCE/);
-  assert.match(bundle, /Visual gate performance report/);
+  assert.match(index, /0\.12\.0/);
+  assert.match(loader, /release = "0\.12\.0"/);
+  assert.match(bundle, /PRODUCTION FLIGHT 01/);
+  assert.match(bundle, /Deliver the signal/);
+  assert.match(bundle, /LOCAL BEST/);
 });

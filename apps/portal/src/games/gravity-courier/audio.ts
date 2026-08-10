@@ -71,6 +71,24 @@ export class CourierAudio {
     });
   }
 
+  fail() {
+    if (!this.context || !this.master || this.muted) return;
+    const now = this.context.currentTime;
+    [146, 110, 73].forEach((frequency, index) => {
+      const oscillator = this.context!.createOscillator();
+      const gain = this.context!.createGain();
+      oscillator.type = "triangle";
+      oscillator.frequency.setValueAtTime(frequency, now + index * 0.13);
+      oscillator.frequency.exponentialRampToValueAtTime(frequency * 0.58, now + 0.72);
+      gain.gain.setValueAtTime(0.0001, now + index * 0.13);
+      gain.gain.exponentialRampToValueAtTime(0.1, now + index * 0.13 + 0.025);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.78);
+      oscillator.connect(gain).connect(this.master!);
+      oscillator.start(now + index * 0.13);
+      oscillator.stop(now + 0.8);
+    });
+  }
+
   destroy() {
     void this.context?.close();
     this.context = null;

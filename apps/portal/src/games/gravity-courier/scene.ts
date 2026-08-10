@@ -19,8 +19,9 @@ import { GlowLayer } from "@babylonjs/core/Layers/glowLayer.js";
 import { ParticleSystem } from "@babylonjs/core/Particles/particleSystem.js";
 import { DefaultRenderingPipeline } from "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline.js";
 import { CourierAudio } from "./audio";
+import { createSeededRandom, getDailyRouteKey, GRAVITY_COURIER_ROUTE_SECONDS, hashRouteSeed } from "./progress";
 
-export type GatePhase = "running" | "paused" | "complete" | "error";
+export type GatePhase = "ready" | "running" | "paused" | "complete" | "failed" | "error";
 
 export type GateReport = {
   averageFps: number;
@@ -58,10 +59,17 @@ export type GateTelemetry = {
   steerX: number;
   steerY: number;
   steering: boolean;
+  remaining: number;
+  sector: number;
+  nearMisses: number;
+  collisions: number;
+  maxMultiplier: number;
+  routeKey: string;
   report: GateReport | null;
 };
 
 export type GateRuntime = {
+  start(): void;
   pause(): void;
   resume(): void;
   restart(): void;
@@ -78,7 +86,8 @@ type Obstacle = {
 
 type MovingRing = { root: TransformNode; spin: number };
 
-const ROUTE_SECONDS = 30;
+const ROUTE_SECONDS = GRAVITY_COURIER_ROUTE_SECONDS;
+const SECTOR_SECONDS = ROUTE_SECONDS / 4;
 const ROUTE_LENGTH = 310;
 const laneX = [-7, -3.5, 0, 3.5, 7];
 const laneY = [-3.6, -1.2, 1.4, 3.8];
@@ -151,15 +160,19 @@ export async function createGravityCourierScene(
 
   const pressed = new Set<string>();
   const pointerTarget = { active: false, x: 0, y: 0 };
+  const routeKey = getDailyRouteKey();
+  let routeRandom = createSeededRandom(hashRouteSeed(`gravity-courier:${routeKey}`));
   let targetX = 0;
   let targetY = 0;
   let elapsed = 0;
   let score = 0;
   let multiplier = 1;
   let integrity = 3;
-  let speed = 54;
+  let speed = 52;
+  let started = false;
   let paused = false;
   let complete = false;
+  let failed = false;
   let destroyed = false;
   let hitFlash = 0;
   let nearMissFlash = 0;
@@ -171,6 +184,10 @@ export async function createGravityCourierScene(
   let callout = "";
   let calloutSeconds = 0;
   let relayAnnounced = false;
+  let announcedSector = 1;
+  let nearMisses = 0;
+  let collisions = 0;
+  let maxMultiplier = 1;
   let frameTimes: number[] = [];
   let report: GateReport | null = null;
   let runNumber = 1;
@@ -255,7 +272,8 @@ export async function createGravityCourierScene(
 
   function update(delta: number, frameMs: number) {
     if (paused || destroyed) return;
-    if (!complete && elapsed >= 1 && Number.isFinite(frameMs)) frameTimes.push(Scalar.Clamp(frameMs, 0.1, 250));
+    const activeRun = started && !complete && !failed;
+    if (activeRun && elapsed >= 1 && Number.isFinite(frameMs)) frameTimes.push(Scalar.Clamp(frameMs, 0.1, 250));
     const activeGamepad = Array.from(navigator.getGamepads?.() ?? []).find((pad): pad is Gamepad => Boolean(pad?.connected));
     const gamepadX = Math.abs(activeGamepad?.axes[0] ?? 0) > 0.12 ? activeGamepad?.axes[0] ?? 0 : 0;
     const gamepadY = Math.abs(activeGamepad?.axes[1] ?? 0) > 0.12 ? activeGamepad?.axes[1] ?? 0 : 0;
@@ -279,15 +297,24 @@ export async function createGravityCourierScene(
       }
     }
 
-    const boost = (pressed.has("Space") || pointerTarget.active || gamepadBoost) && !complete;
-    const targetSpeed = complete ? 18 : boost ? 82 : 54;
+    const sector = Math.min(4, Math.floor(elapsed / SECTOR_SECONDS) + 1);
+    const difficulty = (sector - 1) / 3;
+    const boost = (pressed.has("Space") || pointerTarget.active || gamepadBoost) && activeRun;
+    const cruiseSpeed = 52 + difficulty * 16;
+    const targetSpeed = activeRun ? (boost ? cruiseSpeed + 26 : cruiseSpeed) : 18;
     speed = Scalar.Lerp(speed, targetSpeed, 1 - Math.exp(-delta * 3.2));
     audio.setBoost(boost);
     starfield.emitRate = (quality === "high" ? 72 : 34) * (boost ? 1.12 : 1);
 
-    if (!complete) {
+    if (activeRun) {
       elapsed = Math.min(ROUTE_SECONDS, elapsed + delta);
-      score += Math.round(speed * delta * multiplier * 0.8);
+      score += Math.round(speed * delta * multiplier * 0.92);
+      const nextSector = Math.min(4, Math.floor(elapsed / SECTOR_SECONDS) + 1);
+      if (nextSector > announcedSector && elapsed < ROUTE_SECONDS) {
+        announcedSector = nextSector;
+        callout = `SECTOR ${nextSector} · DENSITY RISING`;
+        calloutSeconds = 2.2;
+      }
       if (elapsed >= ROUTE_SECONDS) {
         complete = true;
         report = buildReport();
@@ -316,7 +343,7 @@ export async function createGravityCourierScene(
     backdrop.rotation.y += delta * 0.0018;
     backdrop.rotation.z += delta * 0.00035;
 
-    const routeDelta = speed * delta;
+    const routeDelta = activeRun ? speed * delta : 0;
     for (const ring of movingRings) {
       ring.root.position.z -= routeDelta;
       ring.root.rotation.z += ring.spin * delta;
@@ -336,16 +363,17 @@ export async function createGravityCourierScene(
     }
     for (const obstacle of obstacles) {
       obstacle.root.position.z -= routeDelta;
-      obstacle.root.rotation.z += Math.sin(elapsed * 0.4 + obstacle.phase) * delta * 0.22;
-      if (obstacle.root.position.z < -10) recycleObstacle(obstacle, obstacles);
+      obstacle.root.rotation.z += Math.sin(elapsed * 0.4 + obstacle.phase) * delta * (0.22 + difficulty * 0.2);
+      if (activeRun && obstacle.root.position.z < -10) recycleObstacle(obstacle, obstacles, difficulty);
       const zDistance = Math.abs(obstacle.root.position.z - ship.position.z);
       const xDistance = obstacle.root.position.x - ship.position.x;
       const yDistance = obstacle.root.position.y - ship.position.y;
       const lateral = Math.hypot(xDistance, yDistance);
-      if (!obstacle.resolved && zDistance < 1.45) {
+      if (activeRun && !obstacle.resolved && zDistance < 1.45) {
         obstacle.resolved = true;
         if (lateral < obstacle.radius + 0.9) {
           integrity = Math.max(0, integrity - 1);
+          collisions += 1;
           multiplier = 1;
           score = Math.max(0, score - 650);
           hitFlash = 1;
@@ -353,13 +381,22 @@ export async function createGravityCourierScene(
           callout = "HULL IMPACT · CHAIN LOST";
           calloutSeconds = 1.5;
           audio.hit();
+          if (integrity === 0) {
+            failed = true;
+            report = buildReport();
+            callout = "COURIER LOST";
+            calloutSeconds = 3;
+            audio.fail();
+          }
         } else if (lateral < obstacle.radius + 3.1) {
-          multiplier = Math.min(8, multiplier + 1);
+          nearMisses += 1;
+          multiplier = Math.min(12, multiplier + 1);
+          maxMultiplier = Math.max(maxMultiplier, multiplier);
           score += 480 * multiplier;
           nearMissFlash = 1;
           callout = `NEAR MISS · ×${multiplier}`;
           calloutSeconds = 1.25;
-          audio.nearMiss(multiplier / 8);
+          audio.nearMiss(multiplier / 12);
         }
       }
     }
@@ -367,7 +404,7 @@ export async function createGravityCourierScene(
     hitFlash = Math.max(0, hitFlash - delta * 2.8);
     nearMissFlash = Math.max(0, nearMissFlash - delta * 3.4);
     calloutSeconds = Math.max(0, calloutSeconds - delta);
-    if (calloutSeconds === 0 && !complete) callout = "";
+    if (calloutSeconds === 0 && !complete && !failed) callout = "";
     shake = Math.max(0, shake - delta * 1.9);
     scene.imageProcessingConfiguration.exposure = 1.12 + hitFlash * 0.65;
     glow.intensity = (quality === "high" ? 0.28 : 0.2) + nearMissFlash * 0.34;
@@ -386,7 +423,7 @@ export async function createGravityCourierScene(
     if (now - lastTelemetry > 50) {
       lastTelemetry = now;
       onTelemetry({
-        phase: complete ? "complete" : "running",
+        phase: complete ? "complete" : failed ? "failed" : started ? "running" : "ready",
         elapsed,
         progress: elapsed / ROUTE_SECONDS,
         score,
@@ -400,16 +437,23 @@ export async function createGravityCourierScene(
         steerX: Scalar.Clamp(targetX / 8.3, -1, 1),
         steerY: Scalar.Clamp(targetY / 4.5, -1, 1),
         steering,
+        remaining: Math.max(0, Math.ceil(ROUTE_SECONDS - elapsed)),
+        sector,
+        nearMisses,
+        collisions,
+        maxMultiplier,
+        routeKey,
         report,
       });
     }
   }
 
-  function recycleObstacle(obstacle: Obstacle, all: Obstacle[]) {
+  function recycleObstacle(obstacle: Obstacle, all: Obstacle[], difficulty: number) {
     const furthest = Math.max(...all.map((item) => item.root.position.z));
-    obstacle.root.position.z = furthest + 24 + Math.random() * 16;
-    obstacle.root.position.x = laneX[Math.floor(Math.random() * laneX.length)] ?? 0;
-    obstacle.root.position.y = laneY[Math.floor(Math.random() * laneY.length)] ?? 0;
+    obstacle.root.position.z = furthest + (33 - difficulty * 7) + routeRandom() * (15 - difficulty * 5);
+    obstacle.root.position.x = laneX[Math.floor(routeRandom() * laneX.length)] ?? 0;
+    obstacle.root.position.y = laneY[Math.floor(routeRandom() * laneY.length)] ?? 0;
+    obstacle.root.rotation.z = routeRandom() * Math.PI * 2;
     obstacle.resolved = false;
   }
 
@@ -419,12 +463,20 @@ export async function createGravityCourierScene(
     scene.render();
   };
 
+  function start() {
+    if (destroyed || started || complete || failed) return;
+    started = true;
+    callout = "ROUTE LIVE · SECTOR 1";
+    calloutSeconds = 1.8;
+    void audio.arm();
+  }
+
   function pause() {
-    if (paused || destroyed) return;
+    if (paused || destroyed || !started || complete || failed) return;
     paused = true;
     engine.stopRenderLoop(render);
     audio.setBoost(false);
-    onTelemetry({ phase: "paused", elapsed, progress: elapsed / ROUTE_SECONDS, score, multiplier, speed: Math.round(speed * 18.5), integrity, quality, fps: Math.round(smoothedFps), inputMode, callout, steerX: Scalar.Clamp(targetX / 8.3, -1, 1), steerY: Scalar.Clamp(targetY / 4.5, -1, 1), steering: false, report });
+    onTelemetry({ phase: "paused", elapsed, progress: elapsed / ROUTE_SECONDS, score, multiplier, speed: Math.round(speed * 18.5), integrity, quality, fps: Math.round(smoothedFps), inputMode, callout, steerX: Scalar.Clamp(targetX / 8.3, -1, 1), steerY: Scalar.Clamp(targetY / 4.5, -1, 1), steering: false, remaining: Math.max(0, Math.ceil(ROUTE_SECONDS - elapsed)), sector: Math.min(4, Math.floor(elapsed / SECTOR_SECONDS) + 1), nearMisses, collisions, maxMultiplier, routeKey, report });
   }
 
   function resume() {
@@ -435,13 +487,20 @@ export async function createGravityCourierScene(
   }
 
   function restart() {
+    routeRandom = createSeededRandom(hashRouteSeed(`gravity-courier:${routeKey}`));
     elapsed = 0;
     score = 0;
     multiplier = 1;
     integrity = 3;
-    speed = 54;
+    speed = 52;
+    started = true;
     complete = false;
+    failed = false;
     relayAnnounced = false;
+    announcedSector = 1;
+    nearMisses = 0;
+    collisions = 0;
+    maxMultiplier = 1;
     frameTimes = [];
     report = null;
     runNumber += 1;
@@ -450,11 +509,18 @@ export async function createGravityCourierScene(
     targetX = 0;
     targetY = 0;
     ship.position.set(0, 0, 0);
+    resetObstacles();
+    if (paused) resume();
+  }
+
+  function resetObstacles() {
     obstacles.forEach((obstacle, index) => {
-      obstacle.root.position.z = 38 + index * 25;
+      obstacle.root.position.z = 42 + index * 29 + routeRandom() * 6;
+      obstacle.root.position.x = laneX[Math.floor(routeRandom() * laneX.length)] ?? 0;
+      obstacle.root.position.y = laneY[Math.floor(routeRandom() * laneY.length)] ?? 0;
+      obstacle.root.rotation.z = routeRandom() * Math.PI * 2;
       obstacle.resolved = false;
     });
-    if (paused) resume();
   }
 
   function destroy() {
@@ -484,9 +550,10 @@ export async function createGravityCourierScene(
   canvas.addEventListener("pointermove", onPointerMove);
   canvas.addEventListener("pointerup", onPointerUp);
   canvas.addEventListener("pointercancel", onPointerUp);
+  resetObstacles();
   engine.runRenderLoop(render);
 
-  return { pause, resume, restart, setMuted: (muted) => audio.setMuted(muted), destroy };
+  return { start, pause, resume, restart, setMuted: (muted) => audio.setMuted(muted), destroy };
 }
 
 function identifyBrowser() {

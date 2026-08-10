@@ -1,6 +1,6 @@
 # 4444555 Arcade
 
-A premium browser-arcade foundation: a fast React portal, an engine-neutral game SDK, a validated game manifest, and an explicit visual-quality gate before full production.
+A premium browser arcade with a fast React portal, an engine-neutral game SDK, validated manifests, and production gameplay built for short, high-mastery sessions.
 
 ## Start
 
@@ -14,9 +14,12 @@ Run `npm run verify` before submitting changes.
 ## Current scope
 
 - Static portal deployable to GitHub Pages
-- Three differentiated game concepts
+- Gravity Courier Production Gameplay Batch 1
+- Two additional differentiated game concepts
 - Shared contracts for identity, lifecycle, scores, achievements, telemetry, settings, and saves
-- Firebase-ready boundaries without coupling games to Firebase
+- Anonymous device-local Gravity Courier progress, with backend-ready boundaries for later account sync
 - Accessibility, responsive layouts, reduced motion, and asset budgets
 
-The first game, **Gravity Courier**, remains in `visual-gate` status. The portal now contains a lazy-loaded 30-second Babylon.js visual candidate with keyboard, touch and gamepad flight controls; procedural audio; scoring; collisions; live performance telemetry; adaptive rendering tiers; relay finale; and restart/teardown. Production gameplay begins only after this slice is captured and accepted against the criteria in `docs/VISUAL_FEASIBILITY_GATE.md` on physical desktop and mobile devices.
+**Gravity Courier** is a playable production prototype: a deterministic two-minute daily route with four escalating sectors, direct keyboard/touch/gamepad flight controls, procedural audio, near-miss chains, hull failure, medals, instant retry, adaptive rendering, cleanup, and a local pilot record.
+
+See `docs/PROJECT_STATE.md` for the durable project handoff and `docs/PRODUCTION_GAMEPLAY_BATCH_1.md` for the frozen gameplay contract.
