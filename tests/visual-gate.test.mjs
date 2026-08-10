@@ -15,9 +15,17 @@ test("Gravity Courier is lazy-loaded and version-aligned", async () => {
   assert.equal(JSON.parse(manifest).engine.version, "9.20.0");
 });
 
-test("visual candidate exposes lifecycle cleanup and adaptive controls", async () => {
-  const scene = await read("../apps/portal/src/games/gravity-courier/scene.ts");
+test("visual candidate exposes lifecycle cleanup, clear depth and adaptive controls", async () => {
+  const [scene, gate, styles] = await Promise.all([
+    read("../apps/portal/src/games/gravity-courier/scene.ts"),
+    read("../apps/portal/src/games/gravity-courier/GravityCourierGate.tsx"),
+    read("../apps/portal/src/games/gravity-courier/gravity-courier.css"),
+  ]);
   for (const capability of ["pause()", "resume()", "restart()", "destroy()", "prefers-reduced-motion", "pointerdown", "keydown", "getGamepads", "lowFpsSeconds", "createRelayGate"]) {
     assert.ok(scene.includes(capability), `missing ${capability}`);
   }
+  assert.match(scene, /scene\.fogStart = 140/);
+  assert.match(scene, /steerX: Scalar\.Clamp/);
+  assert.match(gate, /courier-flight-vector/);
+  assert.match(styles, /courier-flight-vector/);
 });
