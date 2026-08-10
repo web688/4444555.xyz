@@ -26,8 +26,10 @@ test("visual candidate exposes lifecycle cleanup, clear depth and adaptive contr
   }
   assert.match(scene, /scene\.fogMode = Scene\.FOGMODE_NONE/);
   assert.match(scene, /pipeline\.fxaaEnabled = false/);
-  assert.match(scene, /horizontal \* delta \* 24/);
-  assert.match(scene, /Math\.exp\(-delta \* 16\)/);
+  assert.match(scene, /ship\.position\.x \+ horizontal \* 1\.35/);
+  assert.match(scene, /Math\.exp\(-delta \* 20\)/);
+  assert.match(scene, /pressed\.clear\(\)/);
+  assert.match(scene, /gamepadSteering/);
   assert.match(scene, /steerX: Scalar\.Clamp/);
   assert.match(gate, /courier-flight-vector/);
   assert.match(styles, /courier-flight-vector/);
