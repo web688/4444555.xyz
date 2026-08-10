@@ -19,4 +19,4 @@ Run `npm run verify` before submitting changes.
 - Firebase-ready boundaries without coupling games to Firebase
 - Accessibility, responsive layouts, reduced motion, and asset budgets
 
-The first game, **Gravity Courier**, remains in `visual-gate` status. The portal now contains a lazy-loaded 30-second Babylon.js visual candidate with flight controls, procedural audio, scoring, collisions, adaptive rendering tiers, and restart/teardown. Production gameplay begins only after this slice is captured and accepted against the criteria in `docs/VISUAL_FEASIBILITY_GATE.md` on physical desktop and mobile devices.
+The first game, **Gravity Courier**, remains in `visual-gate` status. The portal now contains a lazy-loaded 30-second Babylon.js visual candidate with keyboard, touch and gamepad flight controls; procedural audio; scoring; collisions; live performance telemetry; adaptive rendering tiers; relay finale; and restart/teardown. Production gameplay begins only after this slice is captured and accepted against the criteria in `docs/VISUAL_FEASIBILITY_GATE.md` on physical desktop and mobile devices.

@@ -32,3 +32,13 @@ Implemented in the portal behind an explicit launch action:
 - lazy loading plus direct Babylon module imports: the normal portal bundle remains approximately 64.5 KB gzip; the primary visual-gate chunk is approximately 375 KB gzip.
 
 The candidate has passed strict TypeScript, contract tests, and the production build. It has **not** passed this visual gate until reference comparison, frame-time capture, audio review, and physical-device tests are attached to a review.
+
+## Candidate 0.3 polish pass
+
+- adds gamepad steering and boost alongside keyboard and pointer controls;
+- displays measured FPS and the active render tier in the HUD;
+- automatically drops from high to balanced after sustained sub-47 FPS rendering;
+- adds a shield impact shell, brighter near-miss response, richer rotating hazards and in-world event callouts;
+- introduces a multi-ring relay structure that approaches during the final route segment.
+
+Automatic downgrading is a safety net, not performance approval. Physical-device frame-time evidence remains mandatory.
