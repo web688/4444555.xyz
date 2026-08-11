@@ -1,6 +1,6 @@
 # Project state — 4444555 Arcade
 
-Updated: 2026-08-11, Production Gameplay Batch 1 mobile correction (`0.13.0`).
+Updated: 2026-08-11, obstacle colour consistency correction (`0.14.0`).
 
 This is the durable handoff for continuing the project in a new conversation. Repository history is authoritative when it is newer than this document.
 
@@ -24,7 +24,7 @@ Do not start a second playable game until Gravity Courier is a convincing real g
 
 - Portal: React 19, TypeScript, Vite, responsive GitHub Pages deployment with custom domain.
 - Shared boundary: engine-neutral `@4444555/game-sdk` for lifecycle, player context, settings, score claims, achievements, telemetry, and saves.
-- Gravity Courier: Babylon.js 9.20.0, manifest `0.13.0`, status `prototype`, Production Gameplay Batch 1.
+- Gravity Courier: Babylon.js 9.20.0, manifest `0.14.0`, status `prototype`, Production Gameplay Batch 1.
 - Other catalog entries: Echo Vector and Prism Siege remain concepts.
 - Source: `apps/portal/src/games/gravity-courier/`.
 - Manifest: `catalog/manifests/gravity-courier.json`.
@@ -53,7 +53,8 @@ Do not start a second playable game until Gravity Courier is a convincing real g
 
 - The owner reported that the former near-black obstacle bodies were visible only at close range. This was a defect, not an intended fade.
 - Candidate 0.9 changed hazards to lighter cool gunmetal while retaining orange warning accents. The owner accepted the visibility correction as “much better.”
-- On 2026-08-11 the owner requested matte-white obstacle bodies. Candidate 0.13 uses diffuse matte white with no specular reflection while preserving the orange warning accents and full distant silhouette.
+- On 2026-08-11 the owner requested matte-white obstacle bodies. Candidate 0.13 removed specular reflection, but desktop lighting still made the bodies appear dark until the player approached.
+- Candidate 0.14 uses an unlit matte-white body material so distance and nearby lights cannot change its colour. It is deliberately non-emissive, so the desktop glow layer does not make the bodies bloom. Orange warning accents remain unchanged.
 
 ### Foreground speed particles
 
@@ -100,6 +101,10 @@ On 2026-08-11 the owner reported severe mobile stutter and distracting light ref
 
 The owner must test the deployed correction on the same mobile device before mobile frame pacing can be considered improved or accepted.
 
+## Candidate 0.14 obstacle colour correction
+
+On 2026-08-11 the owner reported that desktop obstacle bodies only became white at close range. The cause was diffuse scene-light attenuation on the candidate 0.13 material. Candidate `0.14.0` disables lighting only on obstacle-body material, keeping those bodies consistently matte white at every distance without adding emissive glow. Orange warning strips, tunnel materials, mobile performance settings, controls, route logic, procedural background, and restrained particles are unchanged.
+
 ## Workflow and communication constraints
 
 - The owner prefers concise answers and direct implementation.
@@ -111,4 +116,4 @@ The owner must test the deployed correction on the same mobile device before mob
 
 ## What happens next
 
-After candidate 0.13 deploys, the next step is one mobile run focused on frame pacing, matte-white hazard readability, and removal of tunnel-connector reflections. Preserve the accepted controls, procedural background, route logic, orange warning accents, and reduced foreground effect. Do not begin the next game yet.
+After candidate 0.14 deploys, the next step is one desktop run confirming obstacle bodies remain matte white at distance, plus one mobile run focused on frame pacing and removal of tunnel-connector reflections. Preserve the accepted controls, procedural background, route logic, orange warning accents, and reduced foreground effect. Do not begin the next game yet.
