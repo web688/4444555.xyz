@@ -99,17 +99,20 @@ export async function createGravityCourierScene(
   if (!Engine.isSupported()) throw new Error("WebGL is not available in this browser.");
 
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const mobileTier = window.matchMedia("(pointer: coarse)").matches || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   let quality: GateTelemetry["quality"] =
-    !reducedMotion && window.devicePixelRatio <= 2 && (navigator.hardwareConcurrency ?? 4) >= 6 ? "high" : "balanced";
+    !mobileTier && !reducedMotion && window.devicePixelRatio <= 2 && (navigator.hardwareConcurrency ?? 4) >= 6 ? "high" : "balanced";
   const engine = new Engine(
     canvas,
     true,
     { preserveDrawingBuffer: false, stencil: true, powerPreference: "high-performance" },
     true,
   );
-  engine.setHardwareScalingLevel(1 / Math.min(window.devicePixelRatio, quality === "high" ? 2 : 1.5));
+  engine.setHardwareScalingLevel(mobileTier ? 1 : 1 / Math.min(window.devicePixelRatio, quality === "high" ? 2 : 1.5));
 
   const scene = new Scene(engine);
+  scene.skipPointerMovePicking = true;
+  scene.constantlyUpdateMeshUnderPointer = false;
   scene.clearColor = new Color4(0.004, 0.006, 0.016, 1);
   scene.fogMode = Scene.FOGMODE_NONE;
   scene.imageProcessingConfiguration.toneMappingEnabled = true;
@@ -123,7 +126,8 @@ export async function createGravityCourierScene(
   camera.minZ = 0.1;
   camera.maxZ = 600;
   camera.fov = 0.82;
-  camera.setTarget(new Vector3(0, 0.4, 32));
+  const cameraTarget = new Vector3(0, 0.4, 32);
+  camera.setTarget(cameraTarget);
 
   const ambient = new HemisphericLight("orbital-ambient", new Vector3(0, 1, 0), scene);
   ambient.intensity = 0.3;
@@ -134,29 +138,32 @@ export async function createGravityCourierScene(
   keyLight.intensity = 4.6;
   keyLight.diffuse = new Color3(1, 0.68, 0.3);
   const rimLight = new PointLight("cyan-rim", new Vector3(-10, 2, -3), scene);
-  rimLight.intensity = 38;
+  rimLight.intensity = mobileTier ? 24 : 38;
   rimLight.range = 42;
   rimLight.diffuse = new Color3(0.15, 0.75, 1);
 
-  const glow = new GlowLayer("energy-glow", scene, { blurKernelSize: quality === "high" ? 48 : 24 });
-  glow.intensity = quality === "high" ? 0.28 : 0.2;
-  const pipeline = new DefaultRenderingPipeline("cinematic-pipeline", true, scene, [camera]);
-  pipeline.fxaaEnabled = false;
-  pipeline.bloomEnabled = false;
-  pipeline.chromaticAberrationEnabled = false;
-  pipeline.grainEnabled = false;
+  const glow = mobileTier ? null : new GlowLayer("energy-glow", scene, { blurKernelSize: quality === "high" ? 48 : 24 });
+  if (glow) glow.intensity = quality === "high" ? 0.28 : 0.2;
+  const pipeline = mobileTier ? null : new DefaultRenderingPipeline("cinematic-pipeline", true, scene, [camera]);
+  if (pipeline) {
+    pipeline.fxaaEnabled = false;
+    pipeline.bloomEnabled = false;
+    pipeline.chromaticAberrationEnabled = false;
+    pipeline.grainEnabled = false;
+  }
 
   const audio = new CourierAudio();
   void audio.arm();
   const ship = createCourier(scene);
   const shield = createShield(scene, ship);
-  const movingRings = createOrbitalLane(scene, quality);
-  const obstacles = createObstacles(scene, quality);
-  const relay = createRelayGate(scene, quality);
-  createPlanet(scene, quality);
-  const backdrop = createDeepSpaceBackdrop(scene, quality);
-  glow.addExcludedMesh(backdrop);
-  const starfield = createStarfield(scene, ship, quality);
+  const movingRings = createOrbitalLane(scene, quality, mobileTier);
+  const obstacles = createObstacles(scene, quality, mobileTier);
+  const relay = createRelayGate(scene, quality, mobileTier);
+  createPlanet(scene, quality, mobileTier);
+  const backdrop = createDeepSpaceBackdrop(scene, quality, mobileTier);
+  glow?.addExcludedMesh(backdrop);
+  const starfield = createStarfield(scene, ship, quality, mobileTier);
+  scene.freezeMaterials();
 
   const pressed = new Set<string>();
   const pointerTarget = { active: false, x: 0, y: 0 };
@@ -180,6 +187,8 @@ export async function createGravityCourierScene(
   let lastTelemetry = 0;
   let smoothedFps = 60;
   let lowFpsSeconds = 0;
+  let mobileResolutionReduced = false;
+  let frameSampleElapsed = 0;
   let inputMode: GateTelemetry["inputMode"] = "keyboard";
   let callout = "";
   let calloutSeconds = 0;
@@ -273,8 +282,18 @@ export async function createGravityCourierScene(
   function update(delta: number, frameMs: number) {
     if (paused || destroyed) return;
     const activeRun = started && !complete && !failed;
-    if (activeRun && elapsed >= 1 && Number.isFinite(frameMs)) frameTimes.push(Scalar.Clamp(frameMs, 0.1, 250));
-    const activeGamepad = Array.from(navigator.getGamepads?.() ?? []).find((pad): pad is Gamepad => Boolean(pad?.connected));
+    frameSampleElapsed += delta;
+    if (activeRun && elapsed >= 1 && frameSampleElapsed >= 0.1 && Number.isFinite(frameMs)) {
+      frameTimes.push(Scalar.Clamp(frameMs, 0.1, 250));
+      frameSampleElapsed = 0;
+    }
+    let activeGamepad: Gamepad | null = null;
+    for (const gamepad of navigator.getGamepads?.() ?? []) {
+      if (gamepad?.connected) {
+        activeGamepad = gamepad;
+        break;
+      }
+    }
     const gamepadX = Math.abs(activeGamepad?.axes[0] ?? 0) > 0.12 ? activeGamepad?.axes[0] ?? 0 : 0;
     const gamepadY = Math.abs(activeGamepad?.axes[1] ?? 0) > 0.12 ? activeGamepad?.axes[1] ?? 0 : 0;
     const gamepadBoost = Boolean(activeGamepad?.buttons[0]?.pressed || (activeGamepad?.buttons[7]?.value ?? 0) > 0.35);
@@ -288,11 +307,21 @@ export async function createGravityCourierScene(
       if (lowFpsSeconds > 2.4) {
         quality = "balanced";
         engine.setHardwareScalingLevel(1 / Math.min(window.devicePixelRatio, 1.25));
-        pipeline.chromaticAberrationEnabled = false;
-        pipeline.grainEnabled = false;
-        pipeline.bloomEnabled = false;
-        glow.intensity = 0.2;
+        if (pipeline) {
+          pipeline.chromaticAberrationEnabled = false;
+          pipeline.grainEnabled = false;
+          pipeline.bloomEnabled = false;
+        }
+        if (glow) glow.intensity = 0.2;
         callout = "ADAPTIVE RENDERING · BALANCED";
+        calloutSeconds = 2.2;
+      }
+    } else if (mobileTier && !mobileResolutionReduced) {
+      lowFpsSeconds = smoothedFps < 28 ? lowFpsSeconds + delta : Math.max(0, lowFpsSeconds - delta * 0.5);
+      if (lowFpsSeconds > 1.8) {
+        mobileResolutionReduced = true;
+        engine.setHardwareScalingLevel(1.25);
+        callout = "MOBILE PERFORMANCE MODE";
         calloutSeconds = 2.2;
       }
     }
@@ -304,7 +333,7 @@ export async function createGravityCourierScene(
     const targetSpeed = activeRun ? (boost ? cruiseSpeed + 26 : cruiseSpeed) : 18;
     speed = Scalar.Lerp(speed, targetSpeed, 1 - Math.exp(-delta * 3.2));
     audio.setBoost(boost);
-    starfield.emitRate = (quality === "high" ? 72 : 34) * (boost ? 1.12 : 1);
+    starfield.emitRate = (mobileTier ? 18 : quality === "high" ? 72 : 34) * (boost ? 1.12 : 1);
 
     if (activeRun) {
       elapsed = Math.min(ROUTE_SECONDS, elapsed + delta);
@@ -407,7 +436,7 @@ export async function createGravityCourierScene(
     if (calloutSeconds === 0 && !complete && !failed) callout = "";
     shake = Math.max(0, shake - delta * 1.9);
     scene.imageProcessingConfiguration.exposure = 1.12 + hitFlash * 0.65;
-    glow.intensity = (quality === "high" ? 0.28 : 0.2) + nearMissFlash * 0.34;
+    if (glow) glow.intensity = (quality === "high" ? 0.28 : 0.2) + nearMissFlash * 0.34;
     shield.visibility = hitFlash * 0.82;
     const shieldPulse = 1 + (1 - hitFlash) * 0.24;
     shield.scaling.set(1.45 * shieldPulse, 0.7 * shieldPulse, shieldPulse);
@@ -417,10 +446,11 @@ export async function createGravityCourierScene(
     camera.position.y = Scalar.Lerp(camera.position.y, 4.7 + ship.position.y * 0.1 + shakeY, follow * 0.5);
     camera.position.z = Scalar.Lerp(camera.position.z, boost ? -17.8 : -16.5, follow * 0.4);
     camera.fov = Scalar.Lerp(camera.fov, boost ? 0.9 : 0.82, follow * 0.35);
-    camera.setTarget(new Vector3(ship.position.x * 0.3, ship.position.y * 0.22, 31));
+    cameraTarget.set(ship.position.x * 0.3, ship.position.y * 0.22, 31);
+    camera.setTarget(cameraTarget);
 
     const now = performance.now();
-    if (now - lastTelemetry > 50) {
+    if (now - lastTelemetry > (mobileTier ? 120 : 50)) {
       lastTelemetry = now;
       onTelemetry({
         phase: complete ? "complete" : failed ? "failed" : started ? "running" : "ready",
@@ -502,6 +532,7 @@ export async function createGravityCourierScene(
     collisions = 0;
     maxMultiplier = 1;
     frameTimes = [];
+    frameSampleElapsed = 0;
     report = null;
     runNumber += 1;
     callout = "ROUTE RESET";
@@ -637,31 +668,34 @@ function createShield(scene: Scene, ship: TransformNode) {
   return shield;
 }
 
-function createRelayGate(scene: Scene, quality: GateTelemetry["quality"]) {
+function createRelayGate(scene: Scene, quality: GateTelemetry["quality"], mobileTier: boolean) {
   const root = new TransformNode("relay-gate", scene);
   root.position.z = 250;
   const inner = new TransformNode("relay-gate-inner", scene);
   inner.parent = root;
-  const metal = pbr(scene, "relay-metal", new Color3(0.12, 0.13, 0.15), 0.96, 0.2);
+  const metal = mobileTier
+    ? matte(scene, "relay-metal-matte", new Color3(0.12, 0.13, 0.15))
+    : pbr(scene, "relay-metal", new Color3(0.12, 0.13, 0.15), 0.96, 0.2);
   const energy = emissive(scene, "relay-energy", new Color3(0.98, 0.64, 0.18), 1.35);
   const cyan = emissive(scene, "relay-cyan", new Color3(0.16, 0.82, 1), 1.1);
-  const outer = CreateTorus("relay-outer", { diameter: 21, thickness: 0.42, tessellation: quality === "high" ? 128 : 64 }, scene);
+  const outer = CreateTorus("relay-outer", { diameter: 21, thickness: 0.42, tessellation: mobileTier ? 40 : quality === "high" ? 128 : 64 }, scene);
   outer.rotation.x = Math.PI / 2;
   outer.material = metal;
   outer.parent = root;
-  const innerRing = CreateTorus("relay-inner-ring", { diameter: 13.5, thickness: 0.16, tessellation: quality === "high" ? 96 : 48 }, scene);
+  const innerRing = CreateTorus("relay-inner-ring", { diameter: 13.5, thickness: 0.16, tessellation: mobileTier ? 32 : quality === "high" ? 96 : 48 }, scene);
   innerRing.rotation.x = Math.PI / 2;
   innerRing.material = cyan;
   innerRing.parent = inner;
-  for (let index = 0; index < 12; index += 1) {
-    const angle = (index / 12) * Math.PI * 2;
+  const spokeCount = mobileTier ? 8 : 12;
+  for (let index = 0; index < spokeCount; index += 1) {
+    const angle = (index / spokeCount) * Math.PI * 2;
     const spoke = CreateBox(`relay-spoke-${index}`, { width: 4.2, height: index % 3 === 0 ? 0.36 : 0.14, depth: 0.26 }, scene);
     spoke.position.set(Math.cos(angle) * 7.7, Math.sin(angle) * 7.7, 0);
     spoke.rotation.z = angle;
     spoke.material = index % 3 === 0 ? energy : metal;
     spoke.parent = inner;
   }
-  const core = CreateSphere("relay-core", { diameter: 1.4, segments: quality === "high" ? 32 : 18 }, scene);
+  const core = CreateSphere("relay-core", { diameter: 1.4, segments: mobileTier ? 12 : quality === "high" ? 32 : 18 }, scene);
   core.material = energy;
   core.parent = root;
   const light = new PointLight("relay-light", Vector3.Zero(), scene);
@@ -669,24 +703,27 @@ function createRelayGate(scene: Scene, quality: GateTelemetry["quality"]) {
   light.intensity = 24;
   light.range = 48;
   light.parent = root;
+  light.setEnabled(!mobileTier);
   return { root, inner, core, light };
 }
 
-function createOrbitalLane(scene: Scene, quality: GateTelemetry["quality"]) {
+function createOrbitalLane(scene: Scene, quality: GateTelemetry["quality"], mobileTier: boolean) {
   const ringMaterial = emissive(scene, "lane-energy", new Color3(0.11, 0.52, 0.72), 0.35);
-  const metalMaterial = pbr(scene, "lane-metal", new Color3(0.08, 0.09, 0.11), 0.95, 0.38);
+  const metalMaterial = mobileTier
+    ? matte(scene, "lane-connector-matte", new Color3(0.12, 0.13, 0.15))
+    : pbr(scene, "lane-metal", new Color3(0.08, 0.09, 0.11), 0.95, 0.38);
   const rings: MovingRing[] = [];
-  const count = quality === "high" ? 14 : 10;
+  const count = mobileTier ? 7 : quality === "high" ? 14 : 10;
   for (let index = 0; index < count; index += 1) {
     const root = new TransformNode(`orbital-ring-${index}`, scene);
     root.position.z = 22 + index * (ROUTE_LENGTH / count);
     root.rotation.z = index * 0.41;
     const diameter = 18 + (index % 3) * 1.6;
-    const torus = CreateTorus(`ring-energy-${index}`, { diameter, thickness: index % 4 === 0 ? 0.11 : 0.045, tessellation: quality === "high" ? 96 : 48 }, scene);
+    const torus = CreateTorus(`ring-energy-${index}`, { diameter, thickness: index % 4 === 0 ? 0.11 : 0.045, tessellation: mobileTier ? 32 : quality === "high" ? 96 : 48 }, scene);
     torus.rotation.x = Math.PI / 2;
     torus.material = index % 4 === 0 ? metalMaterial : ringMaterial;
     torus.parent = root;
-    const segments = index % 4 === 0 ? 12 : 4;
+    const segments = mobileTier ? (index % 4 === 0 ? 6 : 3) : index % 4 === 0 ? 12 : 4;
     for (let segment = 0; segment < segments; segment += 1) {
       const angle = (segment / segments) * Math.PI * 2;
       const strut = CreateBox(`ring-strut-${index}-${segment}`, { width: 0.28, height: 1.15 + (segment % 3) * 0.35, depth: 0.55 }, scene);
@@ -700,10 +737,10 @@ function createOrbitalLane(scene: Scene, quality: GateTelemetry["quality"]) {
   return rings;
 }
 
-function createObstacles(scene: Scene, quality: GateTelemetry["quality"]) {
-  const metal = pbr(scene, "hazard-metal", new Color3(0.34, 0.36, 0.4), 0.48, 0.58);
+function createObstacles(scene: Scene, quality: GateTelemetry["quality"], mobileTier: boolean) {
+  const metal = matte(scene, "hazard-matte-white", new Color3(0.82, 0.84, 0.86));
   const hot = emissive(scene, "hazard-hot", new Color3(1, 0.22, 0.035), 1.25);
-  const count = quality === "high" ? 10 : 7;
+  const count = mobileTier ? 5 : quality === "high" ? 10 : 7;
   const obstacles: Obstacle[] = [];
   for (let index = 0; index < count; index += 1) {
     const root = new TransformNode(`hazard-${index}`, scene);
@@ -738,22 +775,22 @@ function createObstacles(scene: Scene, quality: GateTelemetry["quality"]) {
   return obstacles;
 }
 
-function createPlanet(scene: Scene, quality: GateTelemetry["quality"]) {
+function createPlanet(scene: Scene, quality: GateTelemetry["quality"], mobileTier: boolean) {
   const planetMaterial = pbr(scene, "planet-surface", new Color3(0.36, 0.12, 0.035), 0.05, 0.86, new Color3(0.035, 0.006, 0.002));
-  const planet = CreateSphere("gate-planet", { diameter: 118, segments: quality === "high" ? 64 : 32 }, scene);
+  const planet = CreateSphere("gate-planet", { diameter: 118, segments: mobileTier ? 24 : quality === "high" ? 64 : 32 }, scene);
   planet.position.set(72, -31, 184);
   planet.material = planetMaterial;
-  const atmosphere = CreateSphere("gate-atmosphere", { diameter: 122, segments: quality === "high" ? 48 : 24 }, scene);
+  const atmosphere = CreateSphere("gate-atmosphere", { diameter: 122, segments: mobileTier ? 16 : quality === "high" ? 48 : 24 }, scene);
   atmosphere.position.copyFrom(planet.position);
   atmosphere.material = emissive(scene, "planet-atmosphere", new Color3(0.55, 0.12, 0.025), 0.09);
   atmosphere.visibility = 0.45;
-  const moon = CreateSphere("gate-moon", { diameter: 12, segments: 24 }, scene);
+  const moon = CreateSphere("gate-moon", { diameter: 12, segments: mobileTier ? 16 : 24 }, scene);
   moon.position.set(-44, 18, 138);
   moon.material = pbr(scene, "moon-surface", new Color3(0.14, 0.16, 0.2), 0.15, 0.95);
 }
 
-function createDeepSpaceBackdrop(scene: Scene, quality: GateTelemetry["quality"]) {
-  const width = quality === "high" ? 2048 : 1024;
+function createDeepSpaceBackdrop(scene: Scene, quality: GateTelemetry["quality"], mobileTier: boolean) {
+  const width = mobileTier ? 768 : quality === "high" ? 2048 : 1024;
   const height = width / 2;
   const texture = new DynamicTexture("deep-space-backdrop-texture", { width, height }, scene, false);
   const context = texture.getContext() as unknown as CanvasRenderingContext2D;
@@ -785,7 +822,7 @@ function createDeepSpaceBackdrop(scene: Scene, quality: GateTelemetry["quality"]
   };
 
   context.globalCompositeOperation = "screen";
-  const cloudCount = quality === "high" ? 42 : 24;
+  const cloudCount = mobileTier ? 18 : quality === "high" ? 42 : 24;
   for (let index = 0; index < cloudCount; index += 1) {
     const band = index % 3;
     const centerX = band === 0 ? width * 0.24 : band === 1 ? width * 0.46 : width * 0.73;
@@ -811,7 +848,7 @@ function createDeepSpaceBackdrop(scene: Scene, quality: GateTelemetry["quality"]
     context.stroke();
   }
 
-  const starCount = quality === "high" ? 1450 : 720;
+  const starCount = mobileTier ? 520 : quality === "high" ? 1450 : 720;
   for (let index = 0; index < starCount; index += 1) {
     const x = 8 + random() * (width - 16);
     const y = 8 + random() * (height - 16);
@@ -837,7 +874,7 @@ function createDeepSpaceBackdrop(scene: Scene, quality: GateTelemetry["quality"]
   material.backFaceCulling = false;
   material.disableDepthWrite = true;
 
-  const backdrop = CreateSphere("deep-space-backdrop", { diameter: 900, segments: quality === "high" ? 48 : 28 }, scene);
+  const backdrop = CreateSphere("deep-space-backdrop", { diameter: 900, segments: mobileTier ? 20 : quality === "high" ? 48 : 28 }, scene);
   backdrop.material = material;
   backdrop.infiniteDistance = true;
   backdrop.isPickable = false;
@@ -845,7 +882,7 @@ function createDeepSpaceBackdrop(scene: Scene, quality: GateTelemetry["quality"]
   return backdrop;
 }
 
-function createStarfield(scene: Scene, emitter: TransformNode, quality: GateTelemetry["quality"]) {
+function createStarfield(scene: Scene, emitter: TransformNode, quality: GateTelemetry["quality"], mobileTier: boolean) {
   const texture = new DynamicTexture("star-sprite", { width: 64, height: 64 }, scene, false);
   const context = texture.getContext();
   const gradient = context.createRadialGradient(32, 32, 0, 32, 32, 32);
@@ -855,7 +892,7 @@ function createStarfield(scene: Scene, emitter: TransformNode, quality: GateTele
   context.fillStyle = gradient;
   context.fillRect(0, 0, 64, 64);
   texture.update(false);
-  const particles = new ParticleSystem("route-stars", quality === "high" ? 280 : 140, scene);
+  const particles = new ParticleSystem("route-stars", mobileTier ? 72 : quality === "high" ? 280 : 140, scene);
   particles.particleTexture = texture;
   particles.emitter = emitter.position;
   particles.minEmitBox = new Vector3(-30, -18, 34);
@@ -866,13 +903,20 @@ function createStarfield(scene: Scene, emitter: TransformNode, quality: GateTele
   particles.maxLifeTime = 2.8;
   particles.minSize = 0.012;
   particles.maxSize = 0.052;
-  particles.emitRate = quality === "high" ? 72 : 34;
+  particles.emitRate = mobileTier ? 18 : quality === "high" ? 72 : 34;
   particles.color1 = new Color4(0.62, 0.82, 1, 0.3);
   particles.color2 = new Color4(0.88, 0.95, 1, 0.2);
   particles.colorDead = new Color4(0.1, 0.16, 0.25, 0);
   particles.updateSpeed = 0.012;
   particles.start();
   return particles;
+}
+
+function matte(scene: Scene, name: string, color: Color3) {
+  const material = new StandardMaterial(name, scene);
+  material.diffuseColor = color;
+  material.specularColor = Color3.Black();
+  return material;
 }
 
 function pbr(scene: Scene, name: string, color: Color3, metallic: number, roughness: number, emissiveColor = Color3.Black()) {

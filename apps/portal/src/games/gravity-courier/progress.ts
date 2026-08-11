@@ -1,4 +1,4 @@
-export const GRAVITY_COURIER_VERSION = "0.12.0";
+export const GRAVITY_COURIER_VERSION = "0.13.0";
 export const GRAVITY_COURIER_ROUTE_SECONDS = 120;
 export const GRAVITY_COURIER_PROGRESS_EVENT = "4444555:gravity-courier-progress";
 

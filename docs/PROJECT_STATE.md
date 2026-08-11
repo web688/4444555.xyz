@@ -1,6 +1,6 @@
 # Project state — 4444555 Arcade
 
-Updated: 2026-08-10, Production Gameplay Batch 1 (`0.12.0`).
+Updated: 2026-08-11, Production Gameplay Batch 1 mobile correction (`0.13.0`).
 
 This is the durable handoff for continuing the project in a new conversation. Repository history is authoritative when it is newer than this document.
 
@@ -24,7 +24,7 @@ Do not start a second playable game until Gravity Courier is a convincing real g
 
 - Portal: React 19, TypeScript, Vite, responsive GitHub Pages deployment with custom domain.
 - Shared boundary: engine-neutral `@4444555/game-sdk` for lifecycle, player context, settings, score claims, achievements, telemetry, and saves.
-- Gravity Courier: Babylon.js 9.20.0, manifest `0.12.0`, status `prototype`, Production Gameplay Batch 1.
+- Gravity Courier: Babylon.js 9.20.0, manifest `0.13.0`, status `prototype`, Production Gameplay Batch 1.
 - Other catalog entries: Echo Vector and Prism Siege remain concepts.
 - Source: `apps/portal/src/games/gravity-courier/`.
 - Manifest: `catalog/manifests/gravity-courier.json`.
@@ -52,7 +52,8 @@ Do not start a second playable game until Gravity Courier is a convincing real g
 ### Hazards
 
 - The owner reported that the former near-black obstacle bodies were visible only at close range. This was a defect, not an intended fade.
-- Candidate 0.9 changed hazards to lighter cool gunmetal with lower metallic and higher roughness while retaining orange warning accents. The owner accepted the correction as “much better.”
+- Candidate 0.9 changed hazards to lighter cool gunmetal while retaining orange warning accents. The owner accepted the visibility correction as “much better.”
+- On 2026-08-11 the owner requested matte-white obstacle bodies. Candidate 0.13 uses diffuse matte white with no specular reflection while preserving the orange warning accents and full distant silhouette.
 
 ### Foreground speed particles
 
@@ -68,7 +69,7 @@ This is owner approval to leave the feasibility-slice phase. It is not a claim t
 
 ## Production Gameplay Batch 1
 
-Candidate `0.12.0` replaces the 30-second visual slice with:
+Candidate `0.12.0` replaced the 30-second visual slice with:
 
 - a ready/launch state and 120-second route;
 - four 30-second sectors with increasing cruise speed, obstacle rotation, and route density;
@@ -83,6 +84,22 @@ Candidate `0.12.0` replaces the 30-second visual slice with:
 
 Local progress is intentionally anonymous and device-only. Do not present it as a global leaderboard or account sync.
 
+## Candidate 0.13 mobile correction
+
+On 2026-08-11 the owner reported severe mobile stutter and distracting light reflections on the connectors of the tunnel circles. Candidate `0.13.0` addresses the render path rather than changing controls or route logic:
+
+- coarse-pointer/mobile devices always start in the balanced tier at CSS-pixel resolution instead of up to 1.5× resolution;
+- sustained sub-28 fps automatically reduces render resolution again;
+- the extra glow pass and default post-processing pipeline are disabled on mobile while emissive energy materials remain;
+- mobile ring, relay, planet and backdrop geometry is reduced without changing the composition;
+- mobile route particles use 72 capacity and 18 emissions per second;
+- HUD telemetry drops from 20 to roughly 8 updates per second and frame evidence samples at 10 Hz;
+- live `backdrop-filter` blur is removed over the WebGL canvas on coarse-pointer devices;
+- mobile tunnel connectors and relay metal use non-reflective matte material, and the mobile relay point light is disabled;
+- obstacle bodies are matte white on every tier, with orange warning accents unchanged.
+
+The owner must test the deployed correction on the same mobile device before mobile frame pacing can be considered improved or accepted.
+
 ## Workflow and communication constraints
 
 - The owner prefers concise answers and direct implementation.
@@ -94,4 +111,4 @@ Local progress is intentionally anonymous and device-only. Do not present it as 
 
 ## What happens next
 
-After Production Gameplay Batch 1 is deployed, the next step is owner playtesting of full-run pacing on desktop and mobile. Tune only issues observed in the production run: sector difficulty, scoring/medal thresholds, failure fairness, retry flow, and portal history clarity. Preserve the accepted visual baseline. Do not begin the next game yet.
+After candidate 0.13 deploys, the next step is one mobile run focused on frame pacing, matte-white hazard readability, and removal of tunnel-connector reflections. Preserve the accepted controls, procedural background, route logic, orange warning accents, and reduced foreground effect. Do not begin the next game yet.

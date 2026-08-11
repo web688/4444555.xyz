@@ -1,6 +1,6 @@
 # Gravity Courier visual review record
 
-Candidate: `0.12.0`  
+Candidate: `0.13.0`  
 Reference: user-supplied YouTube sequence around 03:40  
 Status: **owner accepted visual direction; performance capture waived for production transition**
 
@@ -29,8 +29,13 @@ This authorization closes the visual-feasibility phase by owner direction. It do
 
 - Crisp scene with full-screen fog, bloom, FXAA, grain, and chromatic aberration disabled.
 - Procedural `DynamicTexture` deep-space backdrop remains unchanged.
-- Cool readable gunmetal hazards retain orange warning accents.
+- Readable matte-white hazard bodies retain orange warning accents.
+- Mobile tunnel connectors use non-reflective matte material; the mobile relay light is disabled to prevent flashing reflections.
 - `route-stars` remains restrained at 280/140 capacity, 72/34 emission, `0.052` maximum size, low alpha, cool colour, and `1.12` boost amplification.
 - Accepted direct controls and flight-vector response remain unchanged.
 
 Any later visual change requires a specific playtest finding or owner request.
+
+## Candidate 0.13 review focus
+
+The owner reported severe stutter and reflective tunnel-circle connectors on mobile, and requested matte-white obstacles. Candidate 0.13 introduces a dedicated coarse-pointer render path and the requested materials. These changes are implemented but remain pending owner review on the affected mobile device; no mobile-performance pass is claimed from source inspection.

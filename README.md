@@ -20,6 +20,6 @@ Run `npm run verify` before submitting changes.
 - Anonymous device-local Gravity Courier progress, with backend-ready boundaries for later account sync
 - Accessibility, responsive layouts, reduced motion, and asset budgets
 
-**Gravity Courier** is a playable production prototype: a deterministic two-minute daily route with four escalating sectors, direct keyboard/touch/gamepad flight controls, procedural audio, near-miss chains, hull failure, medals, instant retry, adaptive rendering, cleanup, and a local pilot record.
+**Gravity Courier** is a playable production prototype: a deterministic two-minute daily route with four escalating sectors, direct keyboard/touch/gamepad flight controls, procedural audio, near-miss chains, hull failure, medals, instant retry, a dedicated mobile render tier, cleanup, and a local pilot record.
 
 See `docs/PROJECT_STATE.md` for the durable project handoff and `docs/PRODUCTION_GAMEPLAY_BATCH_1.md` for the frozen gameplay contract.
