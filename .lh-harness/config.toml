@@ -1,7 +1,7 @@
 # LongHorizon-Harness configuration for 4444555 Arcade (4444555.xyz)
 
 [run]
-agent = "antigravity"
+agent = "claude_code"
 model = "gemini-3.1-pro-high"
 
 env = "local"
@@ -19,25 +19,25 @@ cli_executor = 1800
 auditor = 300
 
 [run.roles.manager]
-agent = "antigravity"
+agent = "claude_code"
 model = "gemini-3.1-pro-high"
 
 [run.roles.executor]
-agent = "antigravity"
+agent = "claude_code"
 model = "gemini-3.6-flash"
 
 [run.roles.cli_executor]
-agent = "antigravity"
+agent = "claude_code"
 model = "gemini-3.6-flash"
 
 [run.roles.auditor]
-agent = "antigravity"
+agent = "claude_code"
 model = "gemini-3.1-pro-high"
 
 [run.roles.cli_auditor]
-agent = "antigravity"
+agent = "claude_code"
 model = "gemini-3.1-pro-high"
 
 [run.roles.final_response]
-agent = "antigravity"
+agent = "claude_code"
 model = "gemini-3.1-pro-high"
