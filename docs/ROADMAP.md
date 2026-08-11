@@ -2,6 +2,9 @@
 
 Created: 2026-08-11
 Owner: Alex (`web688`)
+Audience: **any** agent or developer working on this repository, regardless of model or tool.
+Companion document: `AGENTS.md` — the standing repository rules and the owner's working style.
+Read that first; this document assumes it.
 Scope of this document: **platform hardening, then two new games.** No Gravity Courier gameplay
 redesign. No backend/accounts phase.
 
