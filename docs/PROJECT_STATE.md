@@ -121,6 +121,16 @@ Candidate `0.15.0` replaces the failed standard material with Babylon's PBR unli
 - Keep the portal usable without authentication; do not ship fake accounts, scores, or rankings.
 - Use an atomic Git tree/commit for releases containing the split Pages fallback assets so CI never sees a partial bundle.
 
+## Phase 0 — Hygiene and readable baseline
+
+On 2026-08-11, Phase 0 was completed and certified:
+- Task 0.1: Local secrets (`GIT_Token.txt`, `all connection info.txt`, `*.zip`) quarantined in `.gitignore`.
+- Task 0.2: Line ending normalization (`* text=auto eol=lf`) locked via `.gitattributes`.
+- Task 0.3: Baseline recorded in `docs/BASELINE.md` for commit `5231a8d`.
+
 ## What happens next
 
-After candidate 0.15 deploys, the next step is one desktop run confirming obstacle bodies remain matte white at distance, plus one mobile run focused on frame pacing and removal of tunnel-connector reflections. Preserve the accepted controls, procedural background, route logic, orange warning accents, and reduced foreground effect. Do not begin the next game yet.
+Phase 0 is complete. Next is **Phase 1 — One deployment path**:
+- Task 1.1: Determine and document the live path (`docs/DEPLOYMENT.md`).
+- **Owner Action Item O4 required for Task 1.1**: Alex to report the GitHub Pages source setting (Settings → Pages → Build and deployment): "GitHub Actions" or "Deploy from a branch".
+
