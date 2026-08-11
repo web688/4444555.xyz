@@ -738,7 +738,7 @@ function createOrbitalLane(scene: Scene, quality: GateTelemetry["quality"], mobi
 }
 
 function createObstacles(scene: Scene, quality: GateTelemetry["quality"], mobileTier: boolean) {
-  const metal = unlitMatte(scene, "hazard-unlit-matte-white", new Color3(0.82, 0.84, 0.86));
+  const metal = unlitMatte(scene, "hazard-pbr-unlit-white", Color3.White());
   const hot = emissive(scene, "hazard-hot", new Color3(1, 0.22, 0.035), 1.25);
   const count = mobileTier ? 5 : quality === "high" ? 10 : 7;
   const obstacles: Obstacle[] = [];
@@ -920,8 +920,11 @@ function matte(scene: Scene, name: string, color: Color3) {
 }
 
 function unlitMatte(scene: Scene, name: string, color: Color3) {
-  const material = matte(scene, name, color);
-  material.disableLighting = true;
+  const material = new PBRMaterial(name, scene);
+  material.albedoColor = color;
+  material.metallic = 0;
+  material.roughness = 1;
+  material.unlit = true;
   return material;
 }
 

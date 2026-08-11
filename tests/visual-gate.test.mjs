@@ -13,7 +13,7 @@ test("Gravity Courier is lazy-loaded and version-aligned", async () => {
   assert.match(app, /lazy\(\(\) => import\("\.\/games\/gravity-courier\/GravityCourierGate"\)\)/);
   assert.equal(JSON.parse(portalPackage).dependencies["@babylonjs/core"], "9.20.0");
   assert.equal(JSON.parse(manifest).engine.version, "9.20.0");
-  assert.equal(JSON.parse(manifest).version, "0.14.0");
+  assert.equal(JSON.parse(manifest).version, "0.15.0");
   assert.equal(JSON.parse(manifest).status, "prototype");
 });
 
@@ -38,9 +38,12 @@ test("production flight preserves accepted visuals and exposes a complete game l
   assert.match(scene, /starCount = mobileTier \? 520 : quality === "high" \? 1450 : 720/);
   assert.match(scene, /material\.emissiveColor = Color3\.Black\(\)/);
   assert.doesNotMatch(scene, /material\.emissiveColor = new Color3\(0\.92, 0\.96, 1\)/);
-  assert.match(scene, /unlitMatte\(scene, "hazard-unlit-matte-white"/);
-  assert.match(scene, /material\.disableLighting = true/);
-  assert.match(scene, /new Color3\(0\.82, 0\.84, 0\.86\)/);
+  assert.match(scene, /unlitMatte\(scene, "hazard-pbr-unlit-white", Color3\.White\(\)\)/);
+  assert.match(scene, /material\.albedoColor = color/);
+  assert.match(scene, /material\.metallic = 0/);
+  assert.match(scene, /material\.roughness = 1/);
+  assert.match(scene, /material\.unlit = true/);
+  assert.doesNotMatch(scene, /hazard-unlit-matte-white/);
   assert.doesNotMatch(scene, /new Color3\(0\.34, 0\.36, 0\.4\), 0\.48, 0\.58/);
   assert.doesNotMatch(scene, /new Color3\(0\.12, 0\.1, 0\.09\), 0\.95, 0\.34/);
   assert.match(scene, /steerX: Scalar\.Clamp/);
@@ -85,20 +88,19 @@ test("production flight preserves accepted visuals and exposes a complete game l
   assert.doesNotMatch(scene, /quality === "high" \? 420 : 190/);
 });
 
-test("Pages fallback contains obstacle color correction 0.14", async () => {
+test("Pages fallback contains true unlit obstacle correction 0.15", async () => {
   const [index, loader, ...parts] = await Promise.all([
     read("../index.html"),
     read("../assets/arcade-loader.js"),
     ...Array.from({ length: 5 }, (_, index) => read(`../assets/arcade.part${String(index).padStart(2, "0")}.b64`)),
   ]);
   const bundle = parts.map((part) => Buffer.from(part.trim(), "base64").toString("utf8")).join("");
-  assert.match(index, /0\.14\.0/);
-  assert.match(loader, /release = "0\.14\.0"/);
+  assert.match(index, /0\.15\.0/);
+  assert.match(loader, /release = "0\.15\.0"/);
   assert.match(bundle, /PRODUCTION FLIGHT 01/);
   assert.match(bundle, /Deliver the signal/);
   assert.match(bundle, /LOCAL BEST/);
   assert.match(bundle, /MOBILE PERFORMANCE MODE/);
-  assert.match(bundle, /hazard-unlit-matte-white/);
-  assert.match(bundle, /disableLighting/);
+  assert.match(bundle, /hazard-pbr-unlit-white/);
   assert.match(bundle, /lane-connector-matte/);
 });
