@@ -1,6 +1,6 @@
 # Gravity Courier — Production Gameplay Batch 1
 
-Version: `0.12.0`  
+Version: `0.13.0`  
 Status: implemented production prototype
 
 ## Frozen run contract
@@ -44,3 +44,7 @@ Production work preserves the accepted procedural background, crisp rendering, r
 - live cache-version check after deploy
 
 The next owner review should focus on two-minute pacing, sector fairness, score/medal balance, failure clarity, retry speed, and portal history—not on reopening accepted visual decisions without a new observed issue.
+
+## Mobile correction in 0.13
+
+The gameplay contract is unchanged. Mobile/coarse-pointer devices receive a lower-cost render path: CSS-pixel starting resolution with an additional sustained-low-fps step, no extra glow/post-processing pass, reduced scene geometry and route-particle load, lower HUD update frequency, no live HUD backdrop blur, and non-reflective tunnel connectors. Obstacles use matte-white bodies on every tier while keeping orange warning accents.

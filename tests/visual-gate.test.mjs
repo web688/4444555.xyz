@@ -13,7 +13,7 @@ test("Gravity Courier is lazy-loaded and version-aligned", async () => {
   assert.match(app, /lazy\(\(\) => import\("\.\/games\/gravity-courier\/GravityCourierGate"\)\)/);
   assert.equal(JSON.parse(portalPackage).dependencies["@babylonjs/core"], "9.20.0");
   assert.equal(JSON.parse(manifest).engine.version, "9.20.0");
-  assert.equal(JSON.parse(manifest).version, "0.12.0");
+  assert.equal(JSON.parse(manifest).version, "0.13.0");
   assert.equal(JSON.parse(manifest).status, "prototype");
 });
 
@@ -34,15 +34,26 @@ test("production flight preserves accepted visuals and exposes a complete game l
   assert.match(scene, /pressed\.clear\(\)/);
   assert.match(scene, /gamepadSteering/);
   assert.match(scene, /createDeepSpaceBackdrop/);
-  assert.match(scene, /glow\.addExcludedMesh\(backdrop\)/);
-  assert.match(scene, /starCount = quality === "high" \? 1450 : 720/);
+  assert.match(scene, /glow\?\.addExcludedMesh\(backdrop\)/);
+  assert.match(scene, /starCount = mobileTier \? 520 : quality === "high" \? 1450 : 720/);
   assert.match(scene, /material\.emissiveColor = Color3\.Black\(\)/);
   assert.doesNotMatch(scene, /material\.emissiveColor = new Color3\(0\.92, 0\.96, 1\)/);
-  assert.match(scene, /new Color3\(0\.34, 0\.36, 0\.4\), 0\.48, 0\.58/);
+  assert.match(scene, /hazard-matte-white/);
+  assert.match(scene, /new Color3\(0\.82, 0\.84, 0\.86\)/);
+  assert.doesNotMatch(scene, /new Color3\(0\.34, 0\.36, 0\.4\), 0\.48, 0\.58/);
   assert.doesNotMatch(scene, /new Color3\(0\.12, 0\.1, 0\.09\), 0\.95, 0\.34/);
   assert.match(scene, /steerX: Scalar\.Clamp/);
   assert.match(gate, /courier-flight-vector/);
   assert.match(styles, /courier-flight-vector/);
+  assert.match(scene, /const mobileTier = window\.matchMedia\("\(pointer: coarse\)"\)/);
+  assert.match(scene, /engine\.setHardwareScalingLevel\(mobileTier \? 1/);
+  assert.match(scene, /engine\.setHardwareScalingLevel\(1\.25\)/);
+  assert.match(scene, /const glow = mobileTier \? null/);
+  assert.match(scene, /const pipeline = mobileTier \? null/);
+  assert.match(scene, /mobileTier \? 120 : 50/);
+  assert.match(scene, /lane-connector-matte/);
+  assert.match(scene, /light\.setEnabled\(!mobileTier\)/);
+  assert.match(styles, /@media\(pointer:coarse\).*backdrop-filter:none/);
   for (const evidence of ["frameTimes", "buildReport()", "onePercentLowFps", "p95FrameMs", "p99FrameMs", "slowFramePercent", "deviceMemoryGb", "runNumber"]) {
     assert.ok(scene.includes(evidence), `missing evidence field ${evidence}`);
   }
@@ -62,6 +73,8 @@ test("production flight preserves accepted visuals and exposes a complete game l
   for (const cue of [
     'quality === "high" ? 280 : 140',
     'quality === "high" ? 72 : 34',
+    'mobileTier ? 72 : quality === "high" ? 280 : 140',
+    'mobileTier ? 18 : quality === "high" ? 72 : 34',
     'boost ? 1.12 : 1',
     'particles.maxSize = 0.052',
     'new Color4(0.62, 0.82, 1, 0.3)',
@@ -71,16 +84,19 @@ test("production flight preserves accepted visuals and exposes a complete game l
   assert.doesNotMatch(scene, /quality === "high" \? 420 : 190/);
 });
 
-test("Pages fallback contains production gameplay batch 0.12", async () => {
+test("Pages fallback contains mobile correction 0.13", async () => {
   const [index, loader, ...parts] = await Promise.all([
     read("../index.html"),
     read("../assets/arcade-loader.js"),
     ...Array.from({ length: 5 }, (_, index) => read(`../assets/arcade.part${String(index).padStart(2, "0")}.b64`)),
   ]);
   const bundle = parts.map((part) => Buffer.from(part.trim(), "base64").toString("utf8")).join("");
-  assert.match(index, /0\.12\.0/);
-  assert.match(loader, /release = "0\.12\.0"/);
+  assert.match(index, /0\.13\.0/);
+  assert.match(loader, /release = "0\.13\.0"/);
   assert.match(bundle, /PRODUCTION FLIGHT 01/);
   assert.match(bundle, /Deliver the signal/);
   assert.match(bundle, /LOCAL BEST/);
+  assert.match(bundle, /MOBILE PERFORMANCE MODE/);
+  assert.match(bundle, /hazard-matte-white/);
+  assert.match(bundle, /lane-connector-matte/);
 });
