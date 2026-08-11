@@ -5,3 +5,9 @@ dist/
 *.log
 .firebase/
 coverage/
+
+# Local operator files — never commit
+GIT_Token.txt
+all connection info.txt
+*.zip
+
