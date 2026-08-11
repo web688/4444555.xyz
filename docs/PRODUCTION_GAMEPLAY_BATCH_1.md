@@ -1,6 +1,6 @@
 # Gravity Courier — Production Gameplay Batch 1
 
-Version: `0.14.0`  
+Version: `0.15.0`  
 Status: implemented production prototype
 
 ## Frozen run contract
@@ -51,4 +51,8 @@ The gameplay contract is unchanged. Mobile/coarse-pointer devices receive a lowe
 
 ## Obstacle colour correction in 0.14
 
-The gameplay contract and mobile render path are unchanged. Obstacle bodies use an unlit, non-emissive matte-white material so they remain the same colour at long and short range. Orange warning accents are unchanged.
+The gameplay contract and mobile render path were unchanged. This attempt used `StandardMaterial.disableLighting`, but owner desktop review showed the bodies still rendered nearly black. Candidate 0.14 is not the accepted hazard-colour implementation.
+
+## True unlit obstacle correction in 0.15
+
+The gameplay contract and mobile render path remain unchanged. Obstacle bodies now use Babylon's PBR unlit surface path with true-white albedo, zero metallic response, and maximum roughness. Orange warning accents are unchanged; owner desktop confirmation remains required.

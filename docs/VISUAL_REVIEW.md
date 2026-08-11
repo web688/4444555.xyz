@@ -1,6 +1,6 @@
 # Gravity Courier visual review record
 
-Candidate: `0.14.0`  
+Candidate: `0.15.0`  
 Reference: user-supplied YouTube sequence around 03:40  
 Status: **owner accepted visual direction; performance capture waived for production transition**
 
@@ -18,7 +18,7 @@ This authorization closes the visual-feasibility phase by owner direction. It do
 | --- | --- |
 | Composition | Owner accepted the procedural background and route presentation. |
 | Controls/motion | Owner accepted the direct steering behavior after repeated desktop and mobile runs. |
-| Hazard readability | Candidate 0.14 keeps matte-white bodies at a constant colour across distance; orange warning accents remain. Owner desktop confirmation pending. |
+| Hazard readability | Candidate 0.14 failed owner desktop review because bodies remained nearly black. Candidate 0.15 uses the PBR unlit surface path; owner desktop confirmation pending. |
 | Foreground effects | Candidate 0.10 failed because particles resembled a snowstorm; candidate 0.11 reduction accepted. |
 | Sound | No formal headphone/mobile-speaker record supplied. |
 | Desktop performance | Three routes completed; named device/browser and numeric report not supplied. |
@@ -29,7 +29,7 @@ This authorization closes the visual-feasibility phase by owner direction. It do
 
 - Crisp scene with full-screen fog, bloom, FXAA, grain, and chromatic aberration disabled.
 - Procedural `DynamicTexture` deep-space backdrop remains unchanged.
-- Unlit, non-emissive matte-white hazard bodies retain orange warning accents and do not change colour with distance lighting.
+- True-white PBR-unlit hazard bodies retain orange warning accents and do not use scene lighting, metallic reflection, or emissive glow.
 - Mobile tunnel connectors use non-reflective matte material; the mobile relay light is disabled to prevent flashing reflections.
 - `route-stars` remains restrained at 280/140 capacity, 72/34 emission, `0.052` maximum size, low alpha, cool colour, and `1.12` boost amplification.
 - Accepted direct controls and flight-vector response remain unchanged.
@@ -42,4 +42,8 @@ The owner reported severe stutter and reflective tunnel-circle connectors on mob
 
 ## Candidate 0.14 review focus
 
-The owner reported that candidate 0.13 obstacle bodies still appeared dark on desktop until the player approached. Candidate 0.14 makes only the body material unlit and non-emissive, producing a stable matte-white colour at every distance without glow. One desktop run should confirm the correction; the mobile performance review remains pending.
+The owner reported that candidate 0.13 obstacle bodies still appeared dark on desktop until the player approached. Candidate 0.14 attempted to disable lighting on a standard material. The owner's deployed screenshot showed this failed: bodies still appeared nearly black. Candidate 0.14 is rejected for hazard colour.
+
+## Candidate 0.15 review focus
+
+Candidate 0.15 replaces the failed standard-material approach with Babylon's PBR `unlit` mode, true-white albedo, zero metallic response, and maximum roughness. One desktop run must confirm that the obstacle bodies now read white at long and short range. The mobile performance review remains pending.
