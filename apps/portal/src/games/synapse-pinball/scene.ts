@@ -8,7 +8,6 @@ import { DirectionalLight } from "@babylonjs/core/Lights/directionalLight.js";
 import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight.js";
 import { PointLight } from "@babylonjs/core/Lights/pointLight.js";
 import { ShadowGenerator } from "@babylonjs/core/Lights/Shadows/shadowGenerator.js";
-import { ReflectionProbe } from "@babylonjs/core/Probes/reflectionProbe.js";
 import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial.js";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 import { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture.js";
@@ -19,7 +18,8 @@ import { CreateSphere } from "@babylonjs/core/Meshes/Builders/sphereBuilder.pure
 import { CreateTorus } from "@babylonjs/core/Meshes/Builders/torusBuilder.pure.js";
 import { CreateTube } from "@babylonjs/core/Meshes/Builders/tubeBuilder.pure.js";
 import { PinballAudio } from "./audio";
-import { createSeededRandom, getDailyRouteKey, hashRouteSeed } from "./progress";
+import { createCoreCaptureState, stepCoreCapture } from "./core-capture";
+import { getDailyRouteKey } from "./progress";
 
 export type PinballPhase = "ready" | "in_play" | "paused" | "drained" | "complete" | "error";
 
@@ -109,14 +109,14 @@ export async function createSynapsePinballScene(
   const scene = new Scene(engine);
   scene.skipPointerMovePicking = true;
   scene.constantlyUpdateMeshUnderPointer = false;
-  scene.clearColor = new Color4(0.003, 0.005, 0.012, 1);
+  scene.clearColor = new Color4(0.006, 0.007, 0.01, 1);
   scene.fogMode = Scene.FOGMODE_NONE;
   scene.imageProcessingConfiguration.toneMappingEnabled = true;
-  scene.imageProcessingConfiguration.exposure = 1.18;
-  scene.imageProcessingConfiguration.contrast = 1.45;
+  scene.imageProcessingConfiguration.exposure = 1.05;
+  scene.imageProcessingConfiguration.contrast = 1.28;
   scene.imageProcessingConfiguration.vignetteEnabled = true;
-  scene.imageProcessingConfiguration.vignetteWeight = 1.25;
-  scene.imageProcessingConfiguration.vignetteColor = new Color4(0.01, 0.015, 0.04, 1);
+  scene.imageProcessingConfiguration.vignetteWeight = 1.05;
+  scene.imageProcessingConfiguration.vignetteColor = new Color4(0.015, 0.012, 0.008, 1);
 
   // Ergonomic Player Perspective Camera
   const camera = new FreeCamera("pinball-camera", new Vector3(0, 18.5, -14.2), scene);
@@ -126,21 +126,21 @@ export async function createSynapsePinballScene(
   const baseCameraTarget = new Vector3(0, 1.2, 3.5);
   camera.setTarget(baseCameraTarget);
 
-  // Lighting Architecture
+  // Restrained gallery lighting: the table is the subject, not the room around it.
   const ambient = new HemisphericLight("mainframe-ambient", new Vector3(0, 1, 0), scene);
-  ambient.intensity = 0.38;
-  ambient.diffuse = new Color3(0.2, 0.28, 0.42);
-  ambient.groundColor = new Color3(0.04, 0.05, 0.08);
+  ambient.intensity = 0.58;
+  ambient.diffuse = new Color3(0.34, 0.36, 0.38);
+  ambient.groundColor = new Color3(0.025, 0.027, 0.03);
 
   const keyLight = new DirectionalLight("solar-key", new Vector3(-0.35, -0.85, 0.4), scene);
   keyLight.position = new Vector3(14, 28, -12);
-  keyLight.intensity = 4.2;
-  keyLight.diffuse = new Color3(1, 0.95, 0.9);
+  keyLight.intensity = 2.4;
+  keyLight.diffuse = new Color3(1, 0.91, 0.73);
 
   // Real-Time Shadow Generator
   const shadowGenerator = mobileTier
     ? null
-    : new ShadowGenerator(quality === "high" ? 2048 : 1024, keyLight);
+    : new ShadowGenerator(quality === "high" ? 1024 : 512, keyLight);
   if (shadowGenerator) {
     shadowGenerator.useContactHardeningShadow = quality === "high";
     shadowGenerator.contactHardeningLightSizeUVRatio = 0.04;
@@ -148,29 +148,20 @@ export async function createSynapsePinballScene(
     shadowGenerator.normalBias = 0.002;
   }
 
-  const rimLightCyan = new PointLight("cyan-rim", new Vector3(-14, 12, 6), scene);
-  rimLightCyan.intensity = mobileTier ? 16 : 28;
-  rimLightCyan.range = 38;
-  rimLightCyan.diffuse = new Color3(0, 0.94, 0.66);
+  const rimLightCyan = new PointLight("cyan-rim", new Vector3(-12, 10, 5), scene);
+  rimLightCyan.intensity = mobileTier ? 4 : 7;
+  rimLightCyan.range = 30;
+  rimLightCyan.diffuse = new Color3(0.22, 0.72, 0.76);
 
-  const rimLightViolet = new PointLight("violet-rim", new Vector3(14, 12, 10), scene);
-  rimLightViolet.intensity = mobileTier ? 14 : 24;
-  rimLightViolet.range = 38;
-  rimLightViolet.diffuse = new Color3(0.72, 0.38, 1);
+  const rimLightAmber = new PointLight("amber-rim", new Vector3(12, 10, 8), scene);
+  rimLightAmber.intensity = mobileTier ? 3.5 : 6;
+  rimLightAmber.range = 30;
+  rimLightAmber.diffuse = new Color3(1, 0.55, 0.2);
 
   const audio = new PinballAudio();
   void audio.arm();
 
   // Materials & Shaders
-  const unlitMatte = (name: string, color: Color3) => {
-    const mat = new PBRMaterial(name, scene);
-    mat.albedoColor = color;
-    mat.metallic = 0;
-    mat.roughness = 1;
-    mat.unlit = true;
-    return mat;
-  };
-
   const emissiveMat = (name: string, color: Color3, intensity = 1.2) => {
     const mat = new StandardMaterial(name, scene);
     mat.emissiveColor = color.scale(intensity);
@@ -186,71 +177,42 @@ export async function createSynapsePinballScene(
     return mat;
   };
 
-  const pbrClearGlass = (name: string, tint = new Color3(0.85, 0.95, 1)) => {
+  const pbrClearGlass = (name: string, tint = new Color3(0.85, 0.9, 0.91)) => {
     const mat = new PBRMaterial(name, scene);
     mat.albedoColor = tint;
     mat.metallic = 0.1;
-    mat.roughness = 0.05;
-    mat.alpha = 0.45;
+    mat.roughness = 0.34;
+    mat.alpha = 0.32;
     mat.transparencyMode = PBRMaterial.PBRMATERIAL_ALPHABLEND;
     return mat;
   };
 
-  const railWhiteMat = unlitMatte("rail-white", Color3.White());
-  const hazardOrangeMat = emissiveMat("hazard-orange", new Color3(1, 0.44, 0.05), 1.5);
-  const cyanNeonMat = emissiveMat("cyan-neon", new Color3(0, 0.94, 0.66), 1.6);
-  const violetNeonMat = emissiveMat("violet-neon", new Color3(0.72, 0.38, 1), 1.6);
-  const goldNeonMat = emissiveMat("gold-neon", new Color3(1, 0.78, 0.22), 1.5);
-  const darkTitaniumMat = pbrMetal("dark-titanium", new Color3(0.08, 0.09, 0.12), 0.92, 0.25);
-  const polishedChromeMat = pbrMetal("chrome", new Color3(0.96, 0.98, 1), 1, 0.04);
-  const carbonApronMat = pbrMetal("carbon-apron", new Color3(0.03, 0.04, 0.05), 0.6, 0.4);
+  const railIvoryMat = pbrMetal("rail-ivory", new Color3(0.78, 0.77, 0.71), 0.08, 0.86);
+  const hazardAmberMat = emissiveMat("hazard-amber", new Color3(0.95, 0.43, 0.1), 0.88);
+  const cyanAccentMat = emissiveMat("cyan-accent", new Color3(0.16, 0.66, 0.7), 0.8);
+  const amberAccentMat = emissiveMat("amber-accent", new Color3(0.92, 0.55, 0.2), 0.82);
+  const darkTitaniumMat = pbrMetal("dark-titanium", new Color3(0.035, 0.04, 0.05), 0.62, 0.58);
+  const satinAlloyMat = pbrMetal("satin-alloy", new Color3(0.54, 0.56, 0.57), 0.78, 0.42);
+  const carbonApronMat = pbrMetal("carbon-apron", new Color3(0.018, 0.021, 0.026), 0.3, 0.72);
 
-  // Real-Time Reflection Probe for Liquid Chrome Ball
-  const ballProbe = mobileTier
-    ? null
-    : new ReflectionProbe("ball-reflection-probe", 256, scene);
-  if (ballProbe) {
-    ballProbe.refreshRate = 1;
-    polishedChromeMat.reflectionTexture = ballProbe.cubeTexture;
-  }
-
-  // Cleanroom Environment: Towering Server Monoliths & Overhead Trusses
+  // Minimal exhibition bay. Sparse silhouettes keep the table readable and match the portal.
   const envRoot = new TransformNode("mainframe-env", scene);
 
-  // Reflective Floor
-  const floor = CreateBox("cleanroom-floor", { width: 90, height: 1, depth: 90 }, scene);
+  const floor = CreateBox("gallery-floor", { width: 70, height: 1, depth: 70 }, scene);
   floor.position.set(0, -5, 10);
-  floor.material = pbrMetal("floor-mat", new Color3(0.02, 0.025, 0.035), 0.7, 0.3);
+  floor.material = pbrMetal("floor-mat", new Color3(0.012, 0.014, 0.017), 0.12, 0.94);
   floor.parent = envRoot;
 
-  // Server Towers
-  for (let col = -4; col <= 4; col += 1) {
-    if (Math.abs(col) < 2) continue;
-    const towerX = col * 9.5;
-    for (let row = 0; row < 5; row += 1) {
-      const towerZ = -18 + row * 11;
-      const tower = CreateBox(`server-col-${col}-${row}`, { width: 4.2, height: 34, depth: 4.2 }, scene);
-      tower.position.set(towerX, 12, towerZ);
-      tower.material = darkTitaniumMat;
-      tower.parent = envRoot;
-      if (ballProbe) ballProbe.renderList?.push(tower);
+  for (const side of [-1, 1]) {
+    const frame = CreateBox(`gallery-frame-${side}`, { width: 0.8, height: 22, depth: 0.8 }, scene);
+    frame.position.set(side * 15.5, 6, 6);
+    frame.material = darkTitaniumMat;
+    frame.parent = envRoot;
 
-      // Vertical Fiber Channel
-      const fiberStrip = CreateBox(`server-fiber-${col}-${row}`, { width: 0.12, height: 32, depth: 0.12 }, scene);
-      fiberStrip.position.set(towerX + (col > 0 ? -2.05 : 2.05), 12, towerZ);
-      fiberStrip.material = (row + Math.abs(col)) % 2 === 0 ? cyanNeonMat : violetNeonMat;
-      fiberStrip.parent = envRoot;
-      if (ballProbe) ballProbe.renderList?.push(fiberStrip);
-    }
-  }
-
-  // Overhead Gantry Trusses
-  for (let g = 0; g < 3; g += 1) {
-    const truss = CreateBox(`overhead-truss-${g}`, { width: 60, height: 0.8, depth: 1.2 }, scene);
-    truss.position.set(0, 22, -10 + g * 16);
-    truss.material = darkTitaniumMat;
-    truss.parent = envRoot;
-    if (ballProbe) ballProbe.renderList?.push(truss);
+    const datum = CreateBox(`gallery-datum-${side}`, { width: 0.1, height: 8, depth: 0.1 }, scene);
+    datum.position.set(side * 15.05, 6, 6);
+    datum.material = side < 0 ? cyanAccentMat : amberAccentMat;
+    datum.parent = envRoot;
   }
 
   // Table Root with realistic 9.5 deg pitch
@@ -259,139 +221,115 @@ export async function createSynapsePinballScene(
   const tableRoot = new TransformNode("table-root", scene);
   tableRoot.rotation.x = -0.165;
 
-  // High-Definition 2048x4096 Procedural Silicon Table Deck
+  // Matte technical playfield: sparse markings, one warm accent and one cool accent.
   const deckTexture = new DynamicTexture("playfield-hd-texture", { width: 2048, height: 4096 }, scene, false);
   const dCtx = deckTexture.getContext() as unknown as CanvasRenderingContext2D;
 
   function renderPlayfieldTexture(activeMult = 1) {
-    // Dark Silicon Wafer Background
-    dCtx.fillStyle = "#07090e";
+    dCtx.fillStyle = "#08090c";
     dCtx.fillRect(0, 0, 2048, 4096);
 
-    // Micro-Carbon Weave Grid Pattern
-    dCtx.strokeStyle = "rgba(255, 255, 255, 0.025)";
-    dCtx.lineWidth = 1;
-    for (let x = 0; x < 2048; x += 32) {
+    dCtx.strokeStyle = "rgba(232, 229, 215, 0.035)";
+    dCtx.lineWidth = 2;
+    for (let x = 128; x < 2048; x += 256) {
       dCtx.beginPath();
       dCtx.moveTo(x, 0);
       dCtx.lineTo(x, 4096);
       dCtx.stroke();
     }
-    for (let y = 0; y < 4096; y += 32) {
+    for (let y = 160; y < 4096; y += 320) {
       dCtx.beginPath();
       dCtx.moveTo(0, y);
       dCtx.lineTo(2048, y);
       dCtx.stroke();
     }
 
-    // Outer Perimeter Silicon Margin
-    dCtx.strokeStyle = "rgba(0, 240, 168, 0.35)";
-    dCtx.lineWidth = 8;
-    dCtx.strokeRect(90, 90, 1868, 3916);
+    dCtx.strokeStyle = "rgba(226, 220, 197, 0.34)";
+    dCtx.lineWidth = 6;
+    dCtx.strokeRect(96, 96, 1856, 3904);
 
-    // Gold Circuit Traces & Microchip Nodes
-    dCtx.strokeStyle = "rgba(246, 189, 82, 0.55)";
+    dCtx.strokeStyle = "rgba(196, 118, 45, 0.42)";
     dCtx.lineWidth = 4;
-    for (let i = 0; i < 18; i += 1) {
-      const startX = 220 + i * 90;
+    for (let i = 0; i < 6; i += 1) {
+      const startX = 300 + i * 290;
+      const offset = i % 2 === 0 ? 115 : -115;
       dCtx.beginPath();
-      dCtx.moveTo(startX, 600);
-      dCtx.lineTo(startX, 1600);
-      dCtx.lineTo(startX + (i % 2 === 0 ? 120 : -120), 2200);
-      dCtx.lineTo(startX, 3100);
+      dCtx.moveTo(startX, 520);
+      dCtx.lineTo(startX, 1300);
+      dCtx.lineTo(startX + offset, 1620);
       dCtx.stroke();
-
-      // Gold IC Pads
-      dCtx.fillStyle = "rgba(246, 189, 82, 0.85)";
+      dCtx.fillStyle = "rgba(196, 118, 45, 0.7)";
       dCtx.beginPath();
-      dCtx.arc(startX, 600, 8, 0, Math.PI * 2);
-      dCtx.arc(startX, 3100, 8, 0, Math.PI * 2);
+      dCtx.arc(startX, 520, 7, 0, Math.PI * 2);
       dCtx.fill();
     }
 
-    // Glowing Recessed Laser Bus Conduits
-    dCtx.strokeStyle = "rgba(0, 240, 168, 0.65)";
-    dCtx.lineWidth = 10;
-    dCtx.shadowColor = "#00f0a8";
-    dCtx.shadowBlur = 24;
-
-    // Center Quantum Core Vortex Rings
+    dCtx.strokeStyle = "rgba(207, 126, 49, 0.72)";
+    dCtx.lineWidth = 8;
+    dCtx.shadowColor = "rgba(207, 126, 49, 0.6)";
+    dCtx.shadowBlur = 8;
     dCtx.beginPath();
-    dCtx.arc(1024, 1800, 320, 0, Math.PI * 2);
+    dCtx.arc(1024, 1800, 285, 0, Math.PI * 2);
     dCtx.stroke();
+    dCtx.strokeStyle = "rgba(232, 229, 215, 0.18)";
+    dCtx.lineWidth = 3;
     dCtx.beginPath();
-    dCtx.arc(1024, 1800, 180, 0, Math.PI * 2);
+    dCtx.arc(1024, 1800, 155, 0, Math.PI * 2);
     dCtx.stroke();
 
-    // Top Prism Array Halo
-    dCtx.strokeStyle = "rgba(184, 97, 255, 0.7)";
-    dCtx.shadowColor = "#b861ff";
+    dCtx.strokeStyle = "rgba(58, 158, 168, 0.54)";
+    dCtx.shadowColor = "rgba(58, 158, 168, 0.45)";
     dCtx.beginPath();
-    dCtx.arc(1024, 850, 480, 0.2, Math.PI - 0.2);
+    dCtx.arc(1024, 830, 430, 0.22, Math.PI - 0.22);
     dCtx.stroke();
     dCtx.shadowBlur = 0;
 
-    // Illuminated Mission Insert Chevrons (Ramps)
-    const drawChevron = (cx: number, cy: number, color: string, glow: boolean) => {
+    const drawChevron = (cx: number, cy: number, color: string) => {
       dCtx.fillStyle = color;
-      if (glow) {
-        dCtx.shadowColor = color;
-        dCtx.shadowBlur = 20;
-      }
       dCtx.beginPath();
-      dCtx.moveTo(cx, cy - 60);
-      dCtx.lineTo(cx + 40, cy);
-      dCtx.lineTo(cx + 25, cy);
-      dCtx.lineTo(cx, cy - 35);
-      dCtx.lineTo(cx - 25, cy);
-      dCtx.lineTo(cx - 40, cy);
+      dCtx.moveTo(cx, cy - 44);
+      dCtx.lineTo(cx + 32, cy);
+      dCtx.lineTo(cx + 16, cy);
+      dCtx.lineTo(cx, cy - 24);
+      dCtx.lineTo(cx - 16, cy);
+      dCtx.lineTo(cx - 32, cy);
       dCtx.closePath();
       dCtx.fill();
-      dCtx.shadowBlur = 0;
     };
 
-    // Left Ramp Chevrons
     for (let c = 0; c < 3; c += 1) {
-      drawChevron(520, 2200 - c * 90, "#00f0a8", true);
+      drawChevron(520, 2220 - c * 92, "rgba(58, 158, 168, 0.72)");
     }
-    // Right Ramp Chevrons
     for (let c = 0; c < 3; c += 1) {
-      drawChevron(1528, 2200 - c * 90, "#b861ff", true);
+      drawChevron(1528, 2220 - c * 92, "rgba(207, 126, 49, 0.78)");
     }
 
-    // Dynamic Multiplier Ladder (x2, x4, x6, x8, x10)
     const multValues = [2, 4, 6, 8, 10];
     multValues.forEach((val, idx) => {
       const active = activeMult >= val;
       const my = 2750 - idx * 130;
-      dCtx.fillStyle = active ? "#f6bd52" : "rgba(255, 255, 255, 0.12)";
-      if (active) {
-        dCtx.shadowColor = "#f6bd52";
-        dCtx.shadowBlur = 22;
-      }
+      dCtx.fillStyle = active ? "#d59a59" : "rgba(232, 229, 215, 0.1)";
       dCtx.beginPath();
-      dCtx.moveTo(1024, my - 45);
-      dCtx.lineTo(1024 + 55, my);
-      dCtx.lineTo(1024, my + 45);
-      dCtx.lineTo(1024 - 55, my);
+      dCtx.moveTo(1024, my - 36);
+      dCtx.lineTo(1068, my);
+      dCtx.lineTo(1024, my + 36);
+      dCtx.lineTo(980, my);
       dCtx.closePath();
       dCtx.fill();
-      dCtx.shadowBlur = 0;
 
-      dCtx.fillStyle = active ? "#06090f" : "#606875";
-      dCtx.font = "bold 32px monospace";
+      dCtx.fillStyle = active ? "#090a0d" : "rgba(232, 229, 215, 0.32)";
+      dCtx.font = "bold 28px monospace";
       dCtx.textAlign = "center";
       dCtx.textBaseline = "middle";
       dCtx.fillText(`×${val}`, 1024, my);
     });
 
-    // Silkscreen Telemetry & Markings
-    dCtx.fillStyle = "rgba(255, 255, 255, 0.4)";
-    dCtx.font = "600 24px monospace";
+    dCtx.fillStyle = "rgba(232, 229, 215, 0.34)";
+    dCtx.font = "600 22px monospace";
     dCtx.textAlign = "center";
-    dCtx.fillText("OPTICAL QUANTUM BUS / ARCHITECTURE 01", 1024, 380);
-    dCtx.fillText("SUPERCONDUCTING CORE WELL", 1024, 2180);
-    dCtx.fillText("OVERCLOCK MATRIX", 1024, 3050);
+    dCtx.fillText("SYNAPSE / TABLE 01", 1024, 360);
+    dCtx.fillText("CORE CAPTURE", 1024, 2180);
+    dCtx.fillText("OVERCLOCK", 1024, 3060);
 
     deckTexture.update();
   }
@@ -400,15 +338,14 @@ export async function createSynapsePinballScene(
 
   const deckMat = new PBRMaterial("deck-pbr", scene);
   deckMat.albedoTexture = deckTexture;
-  deckMat.metallic = 0.25;
-  deckMat.roughness = 0.45;
+  deckMat.metallic = 0.05;
+  deckMat.roughness = 0.82;
 
   const deck = CreateBox("table-bed", { width: tableWidth, height: 0.6, depth: tableLength }, scene);
   deck.position.set(0, -0.3, 3);
   deck.material = deckMat;
   deck.receiveShadows = true;
   deck.parent = tableRoot;
-  if (ballProbe) ballProbe.renderList?.push(deck);
 
   // Table Boundary Rails with Chamfers & Underglow Channels
   const railHeight = 1.4;
@@ -417,43 +354,43 @@ export async function createSynapsePinballScene(
   // Left Outer Rail with Neon Underglow
   const leftRail = CreateBox("rail-left", { width: railThickness, height: railHeight, depth: tableLength }, scene);
   leftRail.position.set(-tableWidth / 2 + railThickness / 2, railHeight / 2, 3);
-  leftRail.material = railWhiteMat;
+  leftRail.material = railIvoryMat;
   leftRail.parent = tableRoot;
   shadowGenerator?.addShadowCaster(leftRail);
 
   const leftUnderglow = CreateBox("rail-left-glow", { width: 0.08, height: 0.12, depth: tableLength - 2 }, scene);
   leftUnderglow.position.set(-tableWidth / 2 + railThickness + 0.05, 0.2, 3);
-  leftUnderglow.material = cyanNeonMat;
+  leftUnderglow.material = cyanAccentMat;
   leftUnderglow.parent = tableRoot;
 
   // Right Outer Rail & Plunger Divider
   const rightRail = CreateBox("rail-right", { width: railThickness, height: railHeight, depth: tableLength }, scene);
   rightRail.position.set(tableWidth / 2 - railThickness / 2, railHeight / 2, 3);
-  rightRail.material = railWhiteMat;
+  rightRail.material = railIvoryMat;
   rightRail.parent = tableRoot;
   shadowGenerator?.addShadowCaster(rightRail);
 
   const rightUnderglow = CreateBox("rail-right-glow", { width: 0.08, height: 0.12, depth: tableLength - 2 }, scene);
   rightUnderglow.position.set(tableWidth / 2 - railThickness - 0.05, 0.2, 3);
-  rightUnderglow.material = violetNeonMat;
+  rightUnderglow.material = amberAccentMat;
   rightUnderglow.parent = tableRoot;
 
   const plungerDivider = CreateBox("plunger-divider", { width: 0.35, height: railHeight, depth: tableLength * 0.75 }, scene);
   plungerDivider.position.set(tableWidth / 2 - 1.7, railHeight / 2, -0.1);
-  plungerDivider.material = railWhiteMat;
+  plungerDivider.material = railIvoryMat;
   plungerDivider.parent = tableRoot;
   shadowGenerator?.addShadowCaster(plungerDivider);
 
   // Top Curved Arch & Hazard Warning Header
   const topArch = CreateBox("rail-top", { width: tableWidth, height: railHeight, depth: railThickness }, scene);
   topArch.position.set(0, railHeight / 2, tableLength / 2 + 3 - railThickness / 2);
-  topArch.material = railWhiteMat;
+  topArch.material = railIvoryMat;
   topArch.parent = tableRoot;
   shadowGenerator?.addShadowCaster(topArch);
 
   const topHazard = CreateBox("hazard-top-trim", { width: tableWidth - 1, height: 0.12, depth: 0.15 }, scene);
   topHazard.position.set(0, railHeight + 0.06, tableLength / 2 + 3 - railThickness / 2);
-  topHazard.material = hazardOrangeMat;
+  topHazard.material = hazardAmberMat;
   topHazard.parent = tableRoot;
 
   // Lower Apron Assembly (Brushed Carbon with instruction card slot)
@@ -479,12 +416,12 @@ export async function createSynapsePinballScene(
     // Chrome Base Skirt
     const skirt = CreateCylinder(`bumper-skirt-${idx}`, { height: 0.4, diameterTop: 2.2, diameterBottom: 2.5, tessellation: 24 }, scene);
     skirt.position.y = 0.2;
-    skirt.material = polishedChromeMat;
+    skirt.material = satinAlloyMat;
     skirt.parent = root;
     shadowGenerator?.addShadowCaster(skirt);
 
     // Glowing Internal Filament Cylinder
-    const filamentMat = emissiveMat(`bumper-filament-mat-${idx}`, new Color3(0, 0.94, 0.66), 1.8);
+    const filamentMat = emissiveMat(`bumper-filament-mat-${idx}`, new Color3(0.18, 0.68, 0.72), 0.9);
     const filament = CreateCylinder(`bumper-filament-${idx}`, { height: 0.7, diameter: 1.4, tessellation: 18 }, scene);
     filament.position.y = 0.55;
     filament.material = filamentMat;
@@ -493,7 +430,7 @@ export async function createSynapsePinballScene(
     // Faceted Quartz Glass Cap
     const cap = CreateCylinder(`bumper-cap-${idx}`, { height: 0.6, diameterTop: 2.4, diameterBottom: 2.0, tessellation: 6 }, scene);
     cap.position.y = 0.9;
-    cap.material = pbrClearGlass(`bumper-glass-${idx}`, new Color3(0.8, 0.95, 1));
+    cap.material = pbrClearGlass(`bumper-glass-${idx}`, new Color3(0.76, 0.82, 0.82));
     cap.parent = root;
     shadowGenerator?.addShadowCaster(cap);
 
@@ -501,14 +438,14 @@ export async function createSynapsePinballScene(
     const finial = CreateTorus(`bumper-finial-${idx}`, { diameter: 1.2, thickness: 0.12, tessellation: 20 }, scene);
     finial.position.y = 1.25;
     finial.rotation.x = Math.PI / 2;
-    finial.material = polishedChromeMat;
+    finial.material = satinAlloyMat;
     finial.parent = root;
 
     // Radial Point Light
     const light = new PointLight(`bumper-light-${idx}`, new Vector3(0, 1.4, 0), scene);
-    light.diffuse = new Color3(0, 0.94, 0.66);
-    light.intensity = 10;
-    light.range = 9;
+    light.diffuse = new Color3(0.18, 0.68, 0.72);
+    light.intensity = mobileTier ? 2.5 : 4;
+    light.range = 6;
     light.parent = root;
 
     bumpers.push({
@@ -545,12 +482,12 @@ export async function createSynapsePinballScene(
     const rightRailPath = curvePoints.map((pt) => pt.add(new Vector3(0.25, 0, 0)));
 
     const rTube1 = CreateTube(`${name}-rail-1`, { path: leftRailPath, radius: 0.06, tessellation: 8 }, scene);
-    rTube1.material = polishedChromeMat;
+    rTube1.material = satinAlloyMat;
     rTube1.parent = rampRoot;
     shadowGenerator?.addShadowCaster(rTube1);
 
     const rTube2 = CreateTube(`${name}-rail-2`, { path: rightRailPath, radius: 0.06, tessellation: 8 }, scene);
-    rTube2.material = polishedChromeMat;
+    rTube2.material = satinAlloyMat;
     rTube2.parent = rampRoot;
     shadowGenerator?.addShadowCaster(rTube2);
 
@@ -570,7 +507,7 @@ export async function createSynapsePinballScene(
     const arch = CreateTorus(`${name}-entrance-arch`, { diameter: 1.2, thickness: 0.1, tessellation: 20 }, scene);
     arch.position.set(side * 3.4, 0.8, 4.8);
     arch.rotation.x = Math.PI / 2;
-    arch.material = isLeft ? cyanNeonMat : violetNeonMat;
+    arch.material = isLeft ? cyanAccentMat : amberAccentMat;
     arch.parent = rampRoot;
 
     return rampRoot;
@@ -595,13 +532,13 @@ export async function createSynapsePinballScene(
   const coreHazardTeeth = CreateTorus("core-hazard-ring", { diameter: 3.1, thickness: 0.14, tessellation: 32 }, scene);
   coreHazardTeeth.position.y = 0.18;
   coreHazardTeeth.rotation.x = Math.PI / 2;
-  coreHazardTeeth.material = hazardOrangeMat;
+  coreHazardTeeth.material = hazardAmberMat;
   coreHazardTeeth.parent = coreRoot;
 
   const coreCenterLight = new PointLight("quantum-core-light", new Vector3(0, 1.2, 0), scene);
-  coreCenterLight.diffuse = new Color3(1, 0.45, 0.05);
-  coreCenterLight.intensity = 14;
-  coreCenterLight.range = 11;
+  coreCenterLight.diffuse = new Color3(1, 0.5, 0.16);
+  coreCenterLight.intensity = mobileTier ? 3 : 5;
+  coreCenterLight.range = 7;
   coreCenterLight.parent = coreRoot;
 
   // 4 Logic Gate Drop Targets with Backlit Symbols
@@ -621,7 +558,7 @@ export async function createSynapsePinballScene(
     // Recessed Plate
     const tPlate = CreateBox(`target-plate-${idx}`, { width: 0.85, height: 0.8, depth: 0.2 }, scene);
     tPlate.position.y = 0.4;
-    tPlate.material = cyanNeonMat;
+    tPlate.material = idx < 2 ? cyanAccentMat : amberAccentMat;
     tPlate.parent = tRoot;
     shadowGenerator?.addShadowCaster(tPlate);
 
@@ -648,13 +585,13 @@ export async function createSynapsePinballScene(
     // Colored High-Tension Silicone Rubber Striking Band
     const rubber = CreateBox(`${name}-rubber`, { width: flipperLength, height: 0.16, depth: 0.14 }, scene);
     rubber.position.set(side * (flipperLength / 2), 0.24, 0.2);
-    rubber.material = isLeft ? cyanNeonMat : violetNeonMat;
+    rubber.material = isLeft ? cyanAccentMat : amberAccentMat;
     rubber.parent = root;
 
     // Chrome Pivot Hub Cap
     const hub = CreateCylinder(`${name}-hub`, { height: 0.65, diameter: 0.65, tessellation: 20 }, scene);
     hub.position.y = 0.05;
-    hub.material = polishedChromeMat;
+    hub.material = satinAlloyMat;
     hub.parent = root;
     shadowGenerator?.addShadowCaster(hub);
 
@@ -673,13 +610,13 @@ export async function createSynapsePinballScene(
     slingRoot.parent = tableRoot;
 
     const body = CreateBox(`${name}-body`, { width: 1.8, height: 0.7, depth: 3.4 }, scene);
-    body.material = railWhiteMat;
+    body.material = railIvoryMat;
     body.parent = slingRoot;
     shadowGenerator?.addShadowCaster(body);
 
     const band = CreateBox(`${name}-band`, { width: 0.12, height: 0.2, depth: 3.4 }, scene);
     band.position.x = -side * 0.85;
-    band.material = isLeft ? cyanNeonMat : violetNeonMat;
+    band.material = isLeft ? cyanAccentMat : amberAccentMat;
     band.parent = slingRoot;
 
     return slingRoot;
@@ -695,26 +632,26 @@ export async function createSynapsePinballScene(
 
   const plungerRod = CreateCylinder("plunger-rod", { height: 3.6, diameter: 0.38, tessellation: 18 }, scene);
   plungerRod.rotation.x = Math.PI / 2;
-  plungerRod.material = polishedChromeMat;
+  plungerRod.material = satinAlloyMat;
   plungerRod.parent = plungerRoot;
   shadowGenerator?.addShadowCaster(plungerRod);
 
   const plungerTip = CreateSphere("plunger-tip", { diameter: 0.6, segments: 16 }, scene);
   plungerTip.position.z = 1.8;
-  plungerTip.material = hazardOrangeMat;
+  plungerTip.material = hazardAmberMat;
   plungerTip.parent = plungerRoot;
 
-  // Photonic Chrome Ball
+  // Satin steel ball stays bright without mirroring the entire environment.
   const ballRadius = 0.45;
-  const ball = CreateSphere("photonic-chrome-ball", { diameter: ballRadius * 2, segments: 32 }, scene);
-  ball.material = polishedChromeMat;
+  const ball = CreateSphere("photonic-ball", { diameter: ballRadius * 2, segments: 32 }, scene);
+  ball.material = satinAlloyMat;
   ball.parent = tableRoot;
   shadowGenerator?.addShadowCaster(ball);
 
   const ballCoreLight = new PointLight("ball-core-light", Vector3.Zero(), scene);
-  ballCoreLight.diffuse = new Color3(0, 0.94, 0.66);
-  ballCoreLight.intensity = 12;
-  ballCoreLight.range = 6;
+  ballCoreLight.diffuse = new Color3(0.18, 0.68, 0.72);
+  ballCoreLight.intensity = mobileTier ? 2 : 3.5;
+  ballCoreLight.range = 4;
   ballCoreLight.parent = ball;
 
   // State Management
@@ -745,7 +682,7 @@ export async function createSynapsePinballScene(
 
   let plungerCharging = false;
   let plungerPower = 0;
-  let vortexHoldTimer = 0;
+  let coreCapture = createCoreCaptureState();
 
   // Camera Shake
   let cameraShake = 0;
@@ -766,6 +703,8 @@ export async function createSynapsePinballScene(
     ballInPlay = false;
     plungerPower = 0;
     plungerCharging = false;
+    coreCapture = createCoreCaptureState();
+    audio.setVortex(false);
     ball.position.set(ballX, ballRadius, ballZ);
     phase = ballsRemaining > 0 ? "ready" : "complete";
     if (phase === "ready") {
@@ -794,30 +733,29 @@ export async function createSynapsePinballScene(
     const gravity = 29;
     ballVz -= gravity * dt;
 
-    // Magnetic Well Vortex Capture
+    // The well captures once, releases once, then rearms only after the ball leaves its outer ring.
     const distToCore = Math.sqrt(ballX * ballX + (ballZ - 4.2) * (ballZ - 4.2));
-    if (distToCore < 1.7) {
-      if (vortexHoldTimer <= 0) {
-        vortexHoldTimer = 1.2;
-        audio.setVortex(true, 1);
-        multiplier = Math.min(10, multiplier + 1);
-        if (multiplier > maxMultiplier) maxMultiplier = multiplier;
-        score += 15000 * multiplier;
-        renderPlayfieldTexture(multiplier);
-        cameraShake = 0.35;
-        callout = `QUANTUM CORE CHARGE! ×${multiplier} [ +${(15000 * multiplier).toLocaleString()} PTS ]`;
-        calloutTimer = 2.4;
-      }
+    const coreStep = stepCoreCapture(coreCapture, distToCore, dt);
+    coreCapture = coreStep.state;
+
+    if (coreStep.captured) {
+      audio.setVortex(true, 1);
+      multiplier = Math.min(10, multiplier + 1);
+      if (multiplier > maxMultiplier) maxMultiplier = multiplier;
+      score += 15000 * multiplier;
+      renderPlayfieldTexture(multiplier);
+      cameraShake = 0.12;
+      callout = `CORE CAPTURE ×${multiplier} [ +${(15000 * multiplier).toLocaleString()} PTS ]`;
+      calloutTimer = 2.4;
     }
 
-    if (vortexHoldTimer > 0) {
-      vortexHoldTimer -= dt;
-      const angle = (1.2 - vortexHoldTimer) * Math.PI * 6;
+    if (coreStep.holding) {
+      const angle = coreStep.holdProgress * Math.PI * 6;
       ballX = Math.cos(angle) * 0.75;
       ballZ = 4.2 + Math.sin(angle) * 0.75;
       ballVx = 0;
       ballVz = 0;
-      if (vortexHoldTimer <= 0) {
+      if (coreStep.released) {
         audio.setVortex(false);
         ballVx = (Math.random() - 0.5) * 18;
         ballVz = -25;
@@ -876,8 +814,8 @@ export async function createSynapsePinballScene(
         const dz = ballZ - b.y;
         const dist = Math.sqrt(dx * dx + dz * dz);
         if (dist < b.radius + ballRadius) {
-          const nx = dx / dist;
-          const nz = dz / dist;
+          const nx = dist > 0.001 ? dx / dist : 0;
+          const nz = dist > 0.001 ? dz / dist : -1;
           const bounceSpeed = 28;
           ballVx = nx * bounceSpeed;
           ballVz = nz * bounceSpeed;
@@ -888,7 +826,7 @@ export async function createSynapsePinballScene(
           const pts = 1000 * multiplier;
           score += pts;
           b.flashTimer = 0.28;
-          cameraShake = 0.25;
+          cameraShake = 0.1;
           audio.bumper(i);
         }
       }
@@ -903,7 +841,7 @@ export async function createSynapsePinballScene(
         ballZ = -1.5;
         ballVx = -6;
         ballVz = -15;
-        cameraShake = 0.2;
+        cameraShake = 0.08;
         audio.rampWhoosh();
         callout = `DATA RAMP LOOP! [ +${(5000 * multiplier).toLocaleString()} PTS ]`;
         calloutTimer = 2;
@@ -914,7 +852,7 @@ export async function createSynapsePinballScene(
         ballZ = -1.5;
         ballVx = 6;
         ballVz = -15;
-        cameraShake = 0.2;
+        cameraShake = 0.08;
         audio.rampWhoosh();
         callout = `FIBER OPTIC LOOP! [ +${(5000 * multiplier).toLocaleString()} PTS ]`;
         calloutTimer = 2;
@@ -940,7 +878,7 @@ export async function createSynapsePinballScene(
             if (multiplier > maxMultiplier) maxMultiplier = multiplier;
             renderPlayfieldTexture(multiplier);
             score += 20000;
-            cameraShake = 0.4;
+            cameraShake = 0.14;
             callout = `LOGIC GATES CLEARED! OVERCLOCK ×${multiplier}`;
             calloutTimer = 2.8;
             setTimeout(() => {
@@ -960,13 +898,13 @@ export async function createSynapsePinballScene(
         ballVx = 24;
         ballVz = 13;
         score += 500;
-        cameraShake = 0.15;
+        cameraShake = 0.06;
         audio.targetHit();
       } else if (ballX > 3.2 && ballX < 4.8 && ballVx > 0) {
         ballVx = -24;
         ballVz = 13;
         score += 500;
-        cameraShake = 0.15;
+        cameraShake = 0.06;
         audio.targetHit();
       }
     }
@@ -1048,9 +986,9 @@ export async function createSynapsePinballScene(
     bumpers.forEach((b) => {
       if (b.flashTimer > 0) {
         b.flashTimer -= dt;
-        b.light.intensity = 26;
+        b.light.intensity = mobileTier ? 5 : 9;
       } else {
-        b.light.intensity = 10;
+        b.light.intensity = mobileTier ? 2.5 : 4;
       }
     });
 
@@ -1146,7 +1084,7 @@ export async function createSynapsePinballScene(
       event.preventDefault();
       ballVx += (Math.random() - 0.5) * 4;
       ballVz += 3.5;
-      cameraShake = 0.2;
+      cameraShake = 0.12;
     }
   }
 
@@ -1226,7 +1164,7 @@ export async function createSynapsePinballScene(
     nudge() {
       ballVx += (Math.random() - 0.5) * 4;
       ballVz += 3.5;
-      cameraShake = 0.2;
+      cameraShake = 0.12;
     },
     destroy() {
       running = false;

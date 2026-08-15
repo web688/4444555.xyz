@@ -125,7 +125,7 @@ export default function SynapsePinballGate({ onExit }: Props) {
         <div className="pinball-identity">
           <span className="pinball-live-dot" />
           <strong>SYNAPSE PINBALL</strong>
-          <small>OPTICAL MAINFRAME 01</small>
+          <small>TABLE 01 / DAILY {telemetry.routeKey || "SYNCING"}</small>
         </div>
         <div className="pinball-actions">
           <button onClick={togglePause} disabled={!runtimeReady || telemetry.phase === "complete"}>
@@ -140,15 +140,15 @@ export default function SynapsePinballGate({ onExit }: Props) {
 
       {/* Score and Multiplier */}
       <div className="pinball-score">
-        <small>MAINFRAME SCORE</small>
+        <small>ROUTE SCORE</small>
         <strong>{telemetry.score.toLocaleString("en-US")}</strong>
-        <span>OVERCLOCK ×{telemetry.multiplier}</span>
+        <span className={telemetry.multiplier > 1 ? "hot" : ""}>×{telemetry.multiplier} overclock</span>
       </div>
 
       {/* Balls Remaining Telemetry */}
       <div className="pinball-telemetry">
         <div className="pinball-balls-card">
-          <small>PHOTONIC SPHERES</small>
+          <small>BALLS</small>
           <i className={telemetry.ballsRemaining >= 1 ? "active" : ""} />
           <i className={telemetry.ballsRemaining >= 2 ? "active" : ""} />
           <i className={telemetry.ballsRemaining >= 3 ? "active" : ""} />
@@ -172,7 +172,7 @@ export default function SynapsePinballGate({ onExit }: Props) {
           runtimeRef.current?.setFlipperLeft(false);
         }}
       >
-        <span className="pinball-touch-btn">◀ FLIP L</span>
+        <span className="pinball-touch-btn">◀ LEFT</span>
       </div>
 
       <div
@@ -186,7 +186,7 @@ export default function SynapsePinballGate({ onExit }: Props) {
           runtimeRef.current?.setFlipperRight(false);
         }}
       >
-        <span className="pinball-touch-btn">FLIP R ▶</span>
+        <span className="pinball-touch-btn">RIGHT ▶</span>
       </div>
 
       {telemetry.phase === "ready" && (
@@ -202,14 +202,14 @@ export default function SynapsePinballGate({ onExit }: Props) {
           }}
           onClick={handleLaunch}
         >
-          PULL LAUNCH
+          LAUNCH
         </button>
       )}
 
       {/* Bottom Bar Controls Guide */}
       <footer className="pinball-bottom-bar">
         <div>
-          <span>FLIPPERS</span>: A / D or LEFT / RIGHT <b>·</b> <span>PLUNGER</span>: SPACE / DOWN <b>·</b> <span>NUDGE</span>: W / UP
+          <span>A / D</span> flippers <b>·</b> <span>SPACE / DOWN</span> launch <b>·</b> <span>W / UP</span> nudge
         </div>
         <div>
           <span>BUMPERS</span>: {telemetry.bumperHits} <b>·</b> <span>RAMP LOOPS</span>: {telemetry.rampLoops}
@@ -219,14 +219,14 @@ export default function SynapsePinballGate({ onExit }: Props) {
       {/* Ready / Briefing Modal */}
       {telemetry.phase === "ready" && telemetry.ballsRemaining === 3 && telemetry.score === 0 && (
         <section className="pinball-state ready">
-          <p>OPTICAL MAINFRAME PROTOCOL</p>
+          <p>DAILY TABLE {telemetry.routeKey || "CALIBRATING"}</p>
           <h2>Synapse Pinball</h2>
           <div className="pinball-briefing">
-            <span><b>01 / PRISM BUMPERS</b>Hit quartz prisms in sequence to build the Overclock multiplier.</span>
-            <span><b>02 / FIBER RAMPS</b>Route photonic spheres through elevated light guides for loop bonuses.</span>
-            <span><b>03 / QUANTUM CORE</b>Trap the ball inside the center magnetic well for high-score acceleration.</span>
+            <span><b>01 / BUMPERS</b>Build the multiplier with clean prism hits.</span>
+            <span><b>02 / RAMPS</b>Complete either elevated loop for a route bonus.</span>
+            <span><b>03 / CORE</b>Enter the centre ring for one capture and a fast release.</span>
           </div>
-          <button onClick={handleLaunch}>Initiate Quantum Sequence</button>
+          <button onClick={handleLaunch}>Start table</button>
           <button className="secondary" onClick={onExit}>Return to Portal</button>
         </section>
       )}
@@ -259,7 +259,7 @@ export default function SynapsePinballGate({ onExit }: Props) {
             <span>FINAL MAINFRAME SCORE</span>
             <strong>{outcome.run.score.toLocaleString("en-US")}</strong>
             {outcome.isNewBest && (
-              <small style={{ color: "#00f0a8", display: "block", marginTop: "4px" }}>
+              <small style={{ color: "#dca15f", display: "block", marginTop: "4px" }}>
                 NEW LOCAL BEST RECORD!
               </small>
             )}
