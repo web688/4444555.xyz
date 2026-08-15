@@ -25,6 +25,18 @@ export const games: Game[] = [
     playable: true
   },
   {
+    slug: "orbital-slingshot",
+    eyebrow: "Featured / Production Flight 02",
+    title: "Orbital Slingshot",
+    description: "Plot gravitational slingshots through collapsing star systems. Harness orbital velocity to collect telemetry and dock with extraction gates.",
+    genre: "Orbital mechanics",
+    session: "2 min",
+    mode: "production",
+    accent: "cyan",
+    tags: ["2D", "Gravity physics", "Daily route"],
+    playable: true
+  },
+  {
     slug: "echo-vector",
     eyebrow: "Concept 02",
     title: "Echo Vector",

@@ -1,24 +1,36 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { games } from "./catalog";
 import { GRAVITY_COURIER_PROGRESS_EVENT, loadCourierProgress, type CourierProgress } from "./games/gravity-courier/progress";
+import { ORBITAL_SLINGSHOT_PROGRESS_EVENT, loadSlingshotProgress, type SlingshotProgress } from "./games/orbital-slingshot/progress";
 
 const Arrow = () => <span aria-hidden="true">↗</span>;
 const GravityCourierGate = lazy(() => import("./games/gravity-courier/GravityCourierGate"));
+const OrbitalSlingshotGate = lazy(() => import("./games/orbital-slingshot/OrbitalSlingshotGate"));
 
 export function App() {
   const [query, setQuery] = useState("");
   const [activeGame, setActiveGame] = useState<string | null>(null);
   const [courierProgress, setCourierProgress] = useState(loadCourierProgress);
+  const [slingshotProgress, setSlingshotProgress] = useState(loadSlingshotProgress);
+
   useEffect(() => {
-    const syncProgress = (event?: Event) => {
+    const syncCourier = (event?: Event) => {
       const detail = (event as CustomEvent<CourierProgress> | undefined)?.detail;
       setCourierProgress(detail ?? loadCourierProgress());
     };
-    window.addEventListener(GRAVITY_COURIER_PROGRESS_EVENT, syncProgress);
-    window.addEventListener("storage", syncProgress);
+    const syncSlingshot = (event?: Event) => {
+      const detail = (event as CustomEvent<SlingshotProgress> | undefined)?.detail;
+      setSlingshotProgress(detail ?? loadSlingshotProgress());
+    };
+    window.addEventListener(GRAVITY_COURIER_PROGRESS_EVENT, syncCourier);
+    window.addEventListener(ORBITAL_SLINGSHOT_PROGRESS_EVENT, syncSlingshot);
+    window.addEventListener("storage", syncCourier);
+    window.addEventListener("storage", syncSlingshot);
     return () => {
-      window.removeEventListener(GRAVITY_COURIER_PROGRESS_EVENT, syncProgress);
-      window.removeEventListener("storage", syncProgress);
+      window.removeEventListener(GRAVITY_COURIER_PROGRESS_EVENT, syncCourier);
+      window.removeEventListener(ORBITAL_SLINGSHOT_PROGRESS_EVENT, syncSlingshot);
+      window.removeEventListener("storage", syncCourier);
+      window.removeEventListener("storage", syncSlingshot);
     };
   }, []);
   const visibleGames = useMemo(() => {
@@ -89,6 +101,13 @@ export function App() {
                       <div className="recent-runs"><span>RECENT</span>{courierProgress.recentRuns.length === 0 ? <small>NO RUNS YET</small> : courierProgress.recentRuns.slice(0, 3).map((run) => <i className={run.medal} key={run.id} title={`${run.medal} · ${run.score.toLocaleString("en-US")}`}>{run.score.toLocaleString("en-US")}</i>)}</div>
                     </section>
                   )}
+                  {game.slug === "orbital-slingshot" && (
+                    <section className="flight-record" aria-label="Orbital Slingshot local flight record">
+                      <div><span>LOCAL BEST</span><strong>{slingshotProgress.bestScore.toLocaleString("en-US").padStart(7, "0")}</strong></div>
+                      <div><span>INSERTIONS</span><strong>{slingshotProgress.insertions} / {slingshotProgress.totalRuns}</strong></div>
+                      <div className="recent-runs"><span>RECENT</span>{slingshotProgress.recentRuns.length === 0 ? <small>NO RUNS YET</small> : slingshotProgress.recentRuns.slice(0, 3).map((run) => <i className={run.medal} key={run.id} title={`${run.medal} · ${run.score.toLocaleString("en-US")}`}>{run.score.toLocaleString("en-US")}</i>)}</div>
+                    </section>
+                  )}
                   <div className="tag-row">{game.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
                   <footer><span>{game.genre}</span><span>{game.session}</span><button aria-label={game.playable ? `Launch ${game.title}` : `View ${game.title} concept`} disabled={!game.playable} onClick={() => game.playable && setActiveGame(game.slug)}><Arrow /></button></footer>
                 </div>
@@ -118,6 +137,11 @@ export function App() {
       {activeGame === "gravity-courier" && (
         <Suspense fallback={<div className="gate-loading" role="status"><span />Loading orbital lane…</div>}>
           <GravityCourierGate onExit={() => setActiveGame(null)} />
+        </Suspense>
+      )}
+      {activeGame === "orbital-slingshot" && (
+        <Suspense fallback={<div className="gate-loading" role="status"><span />Loading orbital trajectory…</div>}>
+          <OrbitalSlingshotGate onExit={() => setActiveGame(null)} />
         </Suspense>
       )}
     </div>
