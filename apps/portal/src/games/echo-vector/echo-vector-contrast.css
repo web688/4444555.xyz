@@ -47,13 +47,67 @@
 }
 
 .echo-callout {
-  top: 13%;
+  top: 12.5%;
   border-color: rgb(190 215 220 / 34%);
   background: rgb(5 7 8 / 62%);
 }
 
 .echo-callout.visible {
   color: rgb(229 237 237 / 88%);
+}
+
+.echo-instruction {
+  position: absolute;
+  left: 50%;
+  top: 17.5%;
+  z-index: 4;
+  width: min(560px, calc(100vw - 48px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 10px 18px 9px;
+  border-top: 1px solid rgb(192 216 221 / 26%);
+  border-bottom: 1px solid rgb(235 229 218 / 12%);
+  background: rgb(4 6 7 / 80%);
+  box-shadow: 0 15px 42px rgb(0 0 0 / 20%);
+  transform: translateX(-50%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.echo-instruction > strong {
+  color: #eef2ef;
+  font-size: 12px;
+  font-weight: 720;
+  letter-spacing: .13em;
+}
+
+.echo-instruction > span {
+  max-width: 520px;
+  color: rgb(235 229 218 / 76%);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.echo-instruction > small {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 2px;
+  color: rgb(235 229 218 / 42%);
+  font-size: 7px;
+  letter-spacing: .1em;
+}
+
+.echo-instruction > small b {
+  color: rgb(202 220 223 / 72%);
+  font-weight: 700;
+}
+
+.echo-instruction > small i {
+  color: rgb(235 229 218 / 22%);
+  font-style: normal;
 }
 
 .echo-sequence {
@@ -88,6 +142,85 @@
   box-shadow: 0 0 8px rgb(190 215 220 / 20%);
 }
 
+.echo-simple-rule {
+  margin: -8px 0 22px;
+  padding: 12px 14px;
+  border-left: 2px solid rgb(190 215 220 / 62%);
+  background: rgb(190 215 220 / 5%);
+  color: #e6e9e5;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.echo-ready .echo-briefing span {
+  color: rgb(235 229 218 / 68%);
+}
+
+.echo-ready .echo-briefing b {
+  color: #e6eeee;
+}
+
+.echo-echo-lesson {
+  width: min(650px, calc(100vw - 40px));
+}
+
+.echo-echo-lesson h2 {
+  margin-bottom: 18px;
+}
+
+.echo-lesson-diagram {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1.45fr;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 18px;
+  padding: 14px;
+  border-top: 1px solid rgb(235 229 218 / 10%);
+  border-bottom: 1px solid rgb(235 229 218 / 10%);
+  background: #090b0c;
+  text-align: center;
+}
+
+.echo-lesson-diagram span,
+.echo-lesson-diagram strong {
+  min-height: 42px;
+  display: grid;
+  place-items: center;
+  padding: 0 9px;
+  border: 1px solid rgb(235 229 218 / 14%);
+  font-size: 9px;
+  letter-spacing: .14em;
+}
+
+.echo-lesson-diagram i {
+  color: rgb(235 229 218 / 34%);
+  font-style: normal;
+}
+
+.echo-lesson-diagram .echo-lesson-you {
+  border-color: rgb(235 229 218 / 42%);
+  color: #f1ebe0;
+}
+
+.echo-lesson-diagram .echo-lesson-ghost {
+  border-color: rgb(158 190 198 / 42%);
+  color: #b8d2d7;
+  background: rgb(128 164 173 / 7%);
+}
+
+.echo-lesson-diagram strong {
+  border-color: rgb(190 215 220 / 34%);
+  color: #dce8e8;
+  font-weight: 700;
+}
+
+.echo-lesson-copy {
+  margin-bottom: 18px;
+  color: rgb(235 229 218 / 72%);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
 @media (pointer: coarse), (max-width: 900px) {
   .echo-topbar {
     min-height: 70px;
@@ -95,10 +228,40 @@
   }
 
   .echo-callout {
-    top: 11%;
+    top: 10.5%;
+  }
+
+  .echo-instruction {
+    top: 14%;
+    width: calc(100vw - 24px);
+    padding: 8px 12px;
+  }
+
+  .echo-instruction > strong {
+    font-size: 10px;
+  }
+
+  .echo-instruction > span {
+    font-size: 9px;
+  }
+
+  .echo-instruction > small {
+    display: none;
   }
 
   .echo-sequence {
     bottom: 6px;
+  }
+
+  .echo-lesson-diagram {
+    grid-template-columns: 1fr auto 1fr;
+  }
+
+  .echo-lesson-diagram strong {
+    grid-column: 1 / -1;
+  }
+
+  .echo-lesson-diagram i:nth-of-type(2) {
+    display: none;
   }
 }
