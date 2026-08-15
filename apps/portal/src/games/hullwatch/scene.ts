@@ -83,6 +83,7 @@ const RUN_SECONDS = 90;
 const MAX_HEAT = 100;
 const SHOT_INTERVAL = 0.105;
 const OVERHEAT_RELEASE = 54;
+const HIDDEN_SCALE = 0.0001;
 
 export async function createHullwatchScene(
   canvas: HTMLCanvasElement,
@@ -138,14 +139,17 @@ export async function createHullwatchScene(
   const turret = createCarrierAndTurret(scene, materials);
   const audio = new HullwatchAudio();
 
-  const tracerPool = createTracerPool(scene, materials.tracer, mobileTier ? 14 : 22);
-  const explosionPool = createExplosionPool(scene, materials.explosion, mobileTier ? 8 : 14);
+  // Weapon effects deliberately use materials that are already visible on the carrier.
+  // This avoids compiling a new shader variant on the first trigger pull.
+  const tracerPool = createTracerPool(scene, materials.coolLight, mobileTier ? 12 : 18);
+  const explosionPool = createExplosionPool(scene, materials.enemyHot, mobileTier ? 6 : 10);
   let tracerCursor = 0;
   let explosionCursor = 0;
 
   const enemies: Enemy[] = [];
   const threats: Threat[] = [];
   const pressed = new Set<string>();
+  const aimForward = new Vector3(0, 0.035, 1).normalize();
   let pointerFire = false;
   let virtualFire = false;
   let gamepadFire = false;
@@ -176,6 +180,7 @@ export async function createHullwatchScene(
   let rngState = 0x445555;
   let lastTelemetryAt = 0;
   let currentLock: LockTarget | null = null;
+  let visualEffectsHealthy = true;
 
   const random = () => {
     rngState = (Math.imul(rngState, 1664525) + 1013904223) >>> 0;
@@ -214,19 +219,25 @@ export async function createHullwatchScene(
     onTelemetry(telemetry());
   };
 
+  const hideEffects = () => {
+    turret.leftMuzzle.scaling.setAll(HIDDEN_SCALE);
+    turret.rightMuzzle.scaling.setAll(HIDDEN_SCALE);
+    for (const tracer of tracerPool) {
+      tracer.life = 0;
+      tracer.mesh.scaling.setAll(HIDDEN_SCALE);
+    }
+    for (const explosion of explosionPool) {
+      explosion.life = 0;
+      explosion.mesh.scaling.setAll(HIDDEN_SCALE);
+    }
+  };
+
   const clearCombatObjects = () => {
     for (const enemy of enemies) enemy.root.dispose();
     enemies.length = 0;
     for (const threat of threats) threat.root.dispose();
     threats.length = 0;
-    for (const tracer of tracerPool) {
-      tracer.life = 0;
-      tracer.mesh.isVisible = false;
-    }
-    for (const explosion of explosionPool) {
-      explosion.life = 0;
-      explosion.mesh.isVisible = false;
-    }
+    hideEffects();
   };
 
   const damageHull = (amount: number, reason: string) => {
@@ -246,12 +257,12 @@ export async function createHullwatchScene(
   };
 
   const spawnExplosion = (position: Vector3, large = false) => {
+    if (!visualEffectsHealthy) return;
     const explosion = explosionPool[explosionCursor % explosionPool.length];
     explosionCursor += 1;
     if (!explosion) return;
     explosion.mesh.position.copyFrom(position);
     explosion.mesh.scaling.setAll(large ? 0.9 : 0.55);
-    explosion.mesh.isVisible = true;
     explosion.life = reducedMotion ? 0.12 : 0.28;
   };
 
@@ -399,14 +410,18 @@ export async function createHullwatchScene(
     return best;
   };
 
-  const emitTracer = (forward: Vector3) => {
+  const emitTracer = () => {
+    if (!visualEffectsHealthy) return;
     const tracer = tracerPool[tracerCursor % tracerPool.length];
     tracerCursor += 1;
     if (!tracer) return;
-    const origin = camera.position.add(forward.scale(7.5));
-    tracer.mesh.position.copyFrom(origin.add(forward.scale(10)));
-    tracer.mesh.lookAt(origin.add(forward.scale(60)));
-    tracer.mesh.isVisible = true;
+    const origin = camera.position.add(aimForward.scale(7.5));
+    tracer.mesh.position.copyFrom(origin.add(aimForward.scale(10)));
+    // Do not call mesh.lookAt() while firing. The turret already owns the exact aim angles.
+    tracer.mesh.rotation.x = -aimPitch;
+    tracer.mesh.rotation.y = aimYaw;
+    tracer.mesh.rotation.z = 0;
+    tracer.mesh.scaling.setAll(1);
     tracer.life = 0.075;
   };
 
@@ -418,16 +433,14 @@ export async function createHullwatchScene(
     barrelSide = 1 - barrelSide;
     if (barrelSide === 0) muzzleEnergyLeft = 1;
     else muzzleEnergyRight = 1;
-    audio.shot();
 
-    const forward = camera.getForwardRay(1).direction.normalize();
-    emitTracer(forward);
-    const target = acquireTarget(forward);
+    // The direction is already computed by updateAim. No first-shot camera ray allocation.
+    emitTracer();
+    const target = acquireTarget(aimForward);
     currentLock = target;
     if (!target) return;
 
     hits += 1;
-    audio.hit();
     score += 18 * combo;
 
     if (target.threat) {
@@ -489,11 +502,11 @@ export async function createHullwatchScene(
     aimYaw = Math.max(-0.92, Math.min(0.92, aimYaw));
     aimPitch = Math.max(-0.26, Math.min(0.46, aimPitch));
     const cp = Math.cos(aimPitch);
-    const forward = new Vector3(Math.sin(aimYaw) * cp, Math.sin(aimPitch), Math.cos(aimYaw) * cp);
-    camera.setTarget(camera.position.add(forward.scale(120)));
+    aimForward.set(Math.sin(aimYaw) * cp, Math.sin(aimPitch), Math.cos(aimYaw) * cp);
+    camera.setTarget(camera.position.add(aimForward.scale(120)));
     turret.yaw.rotation.y = aimYaw;
     turret.cradle.rotation.x = -aimPitch;
-    currentLock = acquireTarget(forward);
+    currentLock = acquireTarget(aimForward);
   };
 
   const updateEnemies = (dt: number) => {
@@ -536,21 +549,19 @@ export async function createHullwatchScene(
     impactLight.intensity = Math.max(0, impactLight.intensity - dt * 75);
     muzzleEnergyLeft = Math.max(0, muzzleEnergyLeft - dt * 14);
     muzzleEnergyRight = Math.max(0, muzzleEnergyRight - dt * 14);
-    turret.leftMuzzle.scaling.setAll(0.5 + muzzleEnergyLeft * 1.2);
-    turret.rightMuzzle.scaling.setAll(0.5 + muzzleEnergyRight * 1.2);
-    turret.leftMuzzle.isVisible = muzzleEnergyLeft > 0.02;
-    turret.rightMuzzle.isVisible = muzzleEnergyRight > 0.02;
+    turret.leftMuzzle.scaling.setAll(muzzleEnergyLeft > 0.02 ? 0.5 + muzzleEnergyLeft * 1.2 : HIDDEN_SCALE);
+    turret.rightMuzzle.scaling.setAll(muzzleEnergyRight > 0.02 ? 0.5 + muzzleEnergyRight * 1.2 : HIDDEN_SCALE);
 
     for (const tracer of tracerPool) {
       if (tracer.life <= 0) continue;
       tracer.life -= dt;
-      if (tracer.life <= 0) tracer.mesh.isVisible = false;
+      if (tracer.life <= 0) tracer.mesh.scaling.setAll(HIDDEN_SCALE);
     }
     for (const explosion of explosionPool) {
       if (explosion.life <= 0) continue;
       explosion.life -= dt;
       explosion.mesh.scaling.scaleInPlace(1 + dt * 5.4);
-      if (explosion.life <= 0) explosion.mesh.isVisible = false;
+      if (explosion.life <= 0) explosion.mesh.scaling.setAll(HIDDEN_SCALE);
     }
   };
 
@@ -573,7 +584,19 @@ export async function createHullwatchScene(
     }
 
     const wantsFire = pointerFire || virtualFire || gamepadFire || pressed.has("Space");
-    if (wantsFire) fireShot();
+    if (wantsFire) {
+      try {
+        fireShot();
+      } catch (error) {
+        pointerFire = false;
+        virtualFire = false;
+        gamepadFire = false;
+        visualEffectsHealthy = false;
+        hideEffects();
+        setCallout("CANNON VISUALS BYPASSED — FIRE CONTROL ACTIVE", 2.4);
+        console.error("Hullwatch fire path recovered", error);
+      }
+    }
 
     spawnTimer -= dt;
     if (spawnTimer <= 0) {
@@ -620,6 +643,7 @@ export async function createHullwatchScene(
     calloutTimer = 0;
     rngState = 0x445555;
     impactLight.intensity = 0;
+    visualEffectsHealthy = true;
     phase = "ready";
     updateAim(0);
     publish(true);
@@ -675,15 +699,30 @@ export async function createHullwatchScene(
   engine.runRenderLoop(() => {
     if (destroyed) return;
     const dt = Math.min(0.05, Math.max(0, engine.getDeltaTime() / 1000));
-    if (phase === "running") update(dt);
-    else {
-      updateAim(0);
-      updateEffects(dt);
+    try {
+      if (phase === "running") update(dt);
+      else {
+        updateAim(0);
+        updateEffects(dt);
+      }
+      scene.render();
+      publish();
+    } catch (error) {
+      // A visual effect must never be allowed to terminate Babylon's render loop.
+      pointerFire = false;
+      virtualFire = false;
+      gamepadFire = false;
+      visualEffectsHealthy = false;
+      hideEffects();
+      setCallout("DISPLAY RECOVERED — COMBAT CONTINUES", 2.4);
+      console.error("Hullwatch render loop recovered", error);
+      publish(true);
     }
-    scene.render();
-    publish();
   });
 
+  // Render once before the player can fire. The weapon-effect material is already used by
+  // visible carrier geometry, so there is no first-trigger shader compilation path.
+  scene.render();
   reset();
 
   return {
@@ -784,15 +823,6 @@ function createMaterials(scene: Scene) {
   hostileBolt.diffuseColor = new Color3(0.25, 0.05, 0.02);
   hostileBolt.emissiveColor = new Color3(1, 0.24, 0.06);
 
-  const tracer = new StandardMaterial("player-tracer", scene);
-  tracer.diffuseColor = new Color3(0.55, 0.68, 0.7);
-  tracer.emissiveColor = new Color3(0.78, 0.92, 0.94);
-
-  const explosion = new StandardMaterial("explosion", scene);
-  explosion.diffuseColor = new Color3(0.25, 0.08, 0.025);
-  explosion.emissiveColor = new Color3(0.9, 0.24, 0.06);
-  explosion.alpha = 0.68;
-
   const star = new StandardMaterial("deep-space", scene);
   star.disableLighting = true;
   star.backFaceCulling = false;
@@ -802,7 +832,7 @@ function createMaterials(scene: Scene) {
   planet.metallic = 0.05;
   planet.roughness = 0.92;
 
-  return { hull, armor, ceramic, coolLight, enemyHull, enemyPanel, enemyHot, torpedo, torpedoHot, hostileBolt, tracer, explosion, star, planet };
+  return { hull, armor, ceramic, coolLight, enemyHull, enemyPanel, enemyHot, torpedo, torpedoHot, hostileBolt, star, planet };
 }
 
 function createDeepSpace(scene: Scene, material: StandardMaterial) {
@@ -923,14 +953,16 @@ function createCarrierAndTurret(scene: Scene, materials: ReturnType<typeof creat
 
   const leftMuzzle = CreateSphere("left-muzzle", { diameter: 0.62, segments: 8 }, scene);
   leftMuzzle.position.set(-0.92, 0.12, 7.0);
-  leftMuzzle.material = materials.tracer;
+  leftMuzzle.material = materials.coolLight;
   leftMuzzle.parent = cradle;
-  leftMuzzle.isVisible = false;
+  leftMuzzle.scaling.setAll(HIDDEN_SCALE);
+  leftMuzzle.isPickable = false;
   const rightMuzzle = CreateSphere("right-muzzle", { diameter: 0.62, segments: 8 }, scene);
   rightMuzzle.position.set(0.92, 0.12, 7.0);
-  rightMuzzle.material = materials.tracer;
+  rightMuzzle.material = materials.coolLight;
   rightMuzzle.parent = cradle;
-  rightMuzzle.isVisible = false;
+  rightMuzzle.scaling.setAll(HIDDEN_SCALE);
+  rightMuzzle.isPickable = false;
 
   return { yaw, cradle, leftMuzzle, rightMuzzle };
 }
@@ -939,7 +971,7 @@ function createTracerPool(scene: Scene, material: StandardMaterial, count: numbe
   return Array.from({ length: count }, (_, index) => {
     const mesh = CreateBox(`tracer-${index}`, { width: 0.055, height: 0.055, depth: 20 }, scene);
     mesh.material = material;
-    mesh.isVisible = false;
+    mesh.scaling.setAll(HIDDEN_SCALE);
     mesh.isPickable = false;
     return { mesh, life: 0 };
   });
@@ -949,7 +981,7 @@ function createExplosionPool(scene: Scene, material: StandardMaterial, count: nu
   return Array.from({ length: count }, (_, index) => {
     const mesh = CreateSphere(`explosion-${index}`, { diameter: 2.4, segments: 10 }, scene);
     mesh.material = material;
-    mesh.isVisible = false;
+    mesh.scaling.setAll(HIDDEN_SCALE);
     mesh.isPickable = false;
     return { mesh, life: 0 };
   });
