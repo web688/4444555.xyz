@@ -6,6 +6,7 @@ import { ORBITAL_SLINGSHOT_PROGRESS_EVENT, loadSlingshotProgress, type Slingshot
 const Arrow = () => <span aria-hidden="true">↗</span>;
 const GravityCourierGate = lazy(() => import("./games/gravity-courier/GravityCourierGate"));
 const OrbitalSlingshotGate = lazy(() => import("./games/orbital-slingshot/OrbitalSlingshotGate"));
+const HullwatchGate = lazy(() => import("./games/hullwatch/HullwatchGate"));
 
 export function App() {
   const [query, setQuery] = useState("");
@@ -142,6 +143,11 @@ export function App() {
       {activeGame === "orbital-slingshot" && (
         <Suspense fallback={<div className="gate-loading" role="status"><span />Loading orbital trajectory…</div>}>
           <OrbitalSlingshotGate onExit={() => setActiveGame(null)} />
+        </Suspense>
+      )}
+      {activeGame === "hullwatch" && (
+        <Suspense fallback={<div className="gate-loading" role="status"><span />Loading defense station…</div>}>
+          <HullwatchGate onExit={() => setActiveGame(null)} />
         </Suspense>
       )}
     </div>
