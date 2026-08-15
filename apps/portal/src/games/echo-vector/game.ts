@@ -75,12 +75,23 @@ function calloutForEvents(events: readonly SimulationEvent[], cycle: number): st
 
 function cueLabel(state: EchoSimulation): string {
   const ready: number[] = [];
+  const selected: number[] = [];
+  let primary = 0;
+
   for (const node of state.nodes) {
-    if (getNodeCue(state, node.id).ready) ready.push(node.id + 1);
+    const cue = getNodeCue(state, node.id);
+    if (cue.intensity > 0) {
+      selected.push(node.id + 1);
+      if (cue.primary) primary = node.id + 1;
+    }
+    if (cue.ready) ready.push(node.id + 1);
   }
-  if (ready.length === 0) return "LISTEN FOR THE NEXT WAKE";
-  if (ready.length === 1) return `NODE ${ready[0]} READY`;
-  return `NODES ${ready.join(" · ")} READY`;
+
+  if (ready.length === 1) return `PHASE · NODE ${ready[0]}`;
+  if (ready.length > 1) return `PHASE · NODES ${ready.join(" · ")}`;
+  if (primary > 0) return `TRACK NODE ${primary} · WAIT FOR WAKE`;
+  if (selected.length > 0) return `TRACK NODES ${selected.join(" · ")}`;
+  return "NEXT WAKE ACQUIRING";
 }
 
 function telemetryFrom(state: EchoSimulation, paused: boolean, callout: string): EchoTelemetry {
