@@ -38,14 +38,15 @@ export const games: Game[] = [
   },
   {
     slug: "echo-vector",
-    eyebrow: "Concept 02",
+    eyebrow: "Phase Candidate / Temporal Trial 01",
     title: "Echo Vector",
     description: "Your previous runs return as temporal echoes—sometimes allies, sometimes moving hazards you authored yourself.",
-    genre: "Rhythm tactics",
+    genre: "Temporal tactics",
     session: "3 min",
-    mode: "concept",
+    mode: "visual-gate",
     accent: "cyan",
-    tags: ["2D", "Rhythm", "Mastery"]
+    tags: ["2D", "Temporal", "Mastery"],
+    playable: true
   },
   {
     slug: "prism-siege",
