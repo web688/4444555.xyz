@@ -3,7 +3,7 @@
   z-index: 1000;
   inset: 0;
   overflow: hidden;
-  background: #02040a;
+  background: #050608;
   color: #f4f4f0;
   isolation: isolate;
   font-family: "Manrope", sans-serif;
@@ -23,9 +23,9 @@
   pointer-events: none;
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, rgba(1, 2, 8, 0.4), transparent 18% 82%, rgba(1, 2, 8, 0.35)),
-    linear-gradient(rgba(1, 2, 8, 0.3), transparent 22% 78%, rgba(1, 2, 8, 0.5));
-  box-shadow: inset 0 0 110px rgba(0, 0, 0, 0.5);
+  background: linear-gradient(90deg, rgba(5, 6, 8, 0.3), transparent 18% 82%, rgba(5, 6, 8, 0.28)),
+    linear-gradient(rgba(5, 6, 8, 0.22), transparent 22% 78%, rgba(5, 6, 8, 0.46));
+  box-shadow: inset 0 0 90px rgba(0, 0, 0, 0.36);
 }
 
 .pinball-hud {
@@ -41,9 +41,8 @@
 
 .pinball-hud.top {
   top: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-  background: linear-gradient(rgba(2, 4, 11, 0.88), rgba(2, 4, 11, 0.1));
-  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(232, 229, 215, 0.13);
+  background: linear-gradient(rgba(5, 6, 8, 0.94), rgba(5, 6, 8, 0.12));
 }
 
 .pinball-identity {
@@ -66,8 +65,8 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #00f0a8;
-  box-shadow: 0 0 14px #00f0a8;
+  background: #d28a42;
+  box-shadow: 0 0 12px rgba(210, 138, 66, 0.72);
   animation: pinball-pulse 1.8s ease-in-out infinite;
 }
 
@@ -80,8 +79,7 @@
 .pinball-actions button,
 .pinball-state button {
   border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(3, 5, 12, 0.65);
-  backdrop-filter: blur(12px);
+  background: rgba(8, 9, 12, 0.78);
   color: #c7cad2;
   padding: 8px 12px;
   font: 500 8px "DM Mono", monospace;
@@ -124,19 +122,25 @@
 .pinball-score strong {
   font: 600 clamp(28px, 3.2vw, 50px)/1 "DM Mono", monospace;
   letter-spacing: -0.06em;
-  text-shadow: 0 0 25px rgba(0, 240, 168, 0.2);
+  text-shadow: 0 0 26px rgba(232, 229, 215, 0.15);
 }
 
 .pinball-score span {
   width: max-content;
   margin-top: 6px;
   padding: 4px 8px;
-  border-left: 1px solid #00f0a8;
-  background: linear-gradient(90deg, rgba(0, 240, 168, 0.1), transparent);
+  border-left: 1px solid #d28a42;
+  background: linear-gradient(90deg, rgba(210, 138, 66, 0.11), transparent);
   font: 500 8px "DM Mono", monospace;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #00f0a8;
+  color: #dca15f;
+}
+
+.pinball-score span.hot {
+  color: #f0bb7d;
+  border-color: #e09a52;
+  text-shadow: 0 0 14px rgba(210, 138, 66, 0.54);
 }
 
 .pinball-telemetry {
@@ -170,9 +174,9 @@
 }
 
 .pinball-balls-card i.active {
-  background: #00f0a8;
-  border-color: #00f0a8;
-  box-shadow: 0 0 12px rgba(0, 240, 168, 0.7);
+  background: #d8d5ca;
+  border-color: #d8d5ca;
+  box-shadow: 0 0 11px rgba(216, 213, 202, 0.45);
 }
 
 .pinball-callout {
@@ -182,8 +186,8 @@
   top: 20%;
   transform: translate(-50%, 8px);
   opacity: 0;
-  color: #00f0a8;
-  text-shadow: 0 0 16px rgba(0, 240, 168, 0.5);
+  color: #e0a463;
+  text-shadow: 0 0 16px rgba(210, 138, 66, 0.38);
   font: 500 11px "DM Mono", monospace;
   letter-spacing: 0.2em;
   text-transform: uppercase;
@@ -220,14 +224,14 @@
   color: #3c414c;
 }
 
-/* Split-screen Mobile Touch zones */
+/* Touch controls are opt-in for coarse pointers; desktop keeps an unobstructed table. */
 .pinball-touch-zone {
   position: absolute;
   z-index: 4;
   top: 140px;
   bottom: 0;
   width: 48%;
-  display: flex;
+  display: none;
   align-items: flex-end;
   justify-content: center;
   padding-bottom: 40px;
@@ -245,9 +249,8 @@
 
 .pinball-touch-btn {
   border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(3, 5, 14, 0.55);
-  backdrop-filter: blur(8px);
-  color: #00f0a8;
+  background: rgba(8, 9, 12, 0.72);
+  color: #d8d5ca;
   font: 500 12px "DM Mono", monospace;
   letter-spacing: 0.12em;
   padding: 16px 24px;
@@ -256,8 +259,8 @@
 }
 
 .pinball-touch-btn:active {
-  background: rgba(0, 240, 168, 0.25);
-  border-color: #00f0a8;
+  background: rgba(210, 138, 66, 0.24);
+  border-color: #d28a42;
 }
 
 .pinball-plunger-touch {
@@ -269,17 +272,17 @@
   height: 90px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(4, 8, 18, 0.65);
-  color: #38bdf8;
+  color: #dca15f;
   font: 500 8px "DM Mono", monospace;
   border-radius: 6px;
-  display: grid;
+  display: none;
   place-content: center;
   cursor: pointer;
 }
 
 .pinball-plunger-touch:active {
-  background: rgba(56, 189, 248, 0.3);
-  border-color: #38bdf8;
+  background: rgba(210, 138, 66, 0.28);
+  border-color: #d28a42;
 }
 
 /* Modals */
@@ -290,8 +293,8 @@
   display: grid;
   place-content: center;
   text-align: center;
-  background: rgba(1, 3, 9, 0.76);
-  backdrop-filter: blur(14px);
+  background: radial-gradient(circle at 50% 44%, rgba(118, 73, 33, 0.16), transparent 30%), rgba(5, 6, 8, 0.82);
+  backdrop-filter: blur(7px);
   padding: 24px;
 }
 
@@ -299,7 +302,7 @@
   margin: 0 0 10px;
   font: 500 8px "DM Mono", monospace;
   letter-spacing: 0.2em;
-  color: #00f0a8;
+  color: #dca15f;
   text-transform: uppercase;
 }
 
@@ -311,9 +314,9 @@
 
 .pinball-state button {
   justify-self: center;
-  background: #edf0ed;
+  background: #e8e5da;
   color: #07090d;
-  border-color: #edf0ed;
+  border-color: #e8e5da;
   padding: 13px 20px;
   font-weight: 700;
 }
@@ -429,6 +432,16 @@
   .pinball-hud {
     padding: 14px;
   }
+  .pinball-identity small {
+    display: none;
+  }
+  .pinball-actions {
+    gap: 4px;
+  }
+  .pinball-actions button:not(.pinball-close) {
+    padding: 7px;
+    font-size: 6px;
+  }
   .pinball-score {
     left: 14px;
     top: 72px;
@@ -451,5 +464,46 @@
   .pinball-run-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     width: calc(100vw - 28px);
+  }
+  .pinball-bottom-bar {
+    left: 14px;
+    right: 14px;
+    bottom: 12px;
+  }
+  .pinball-bottom-bar > div:last-child {
+    display: none;
+  }
+  .pinball-state {
+    padding: 18px;
+  }
+  .pinball-state h2 {
+    font-size: 42px;
+  }
+  .pinball-callout {
+    top: 18%;
+    width: 88%;
+    text-align: center;
+    font-size: 8px;
+  }
+}
+
+@media (pointer: coarse) {
+  .pinball-hud.top,
+  .pinball-actions button,
+  .pinball-state,
+  .pinball-touch-btn {
+    backdrop-filter: none;
+  }
+  .pinball-touch-zone {
+    display: flex;
+  }
+  .pinball-plunger-touch {
+    display: grid;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pinball-live-dot {
+    animation: none;
   }
 }
