@@ -187,7 +187,7 @@ export function getNodeCue(
 ): NodeCue {
   const cueIndex = Math.floor(state.tickInCycle / CUE_LENGTH_TICKS);
   const localTick = state.tickInCycle % CUE_LENGTH_TICKS;
-  const hash = seededOffset(state.seed + state.cycle * 97, cueIndex);
+  const hash = seededOffset(state.seed, cueIndex);
   const primary = hash % NODE_LAYOUT.length;
   const secondary = (primary + 2 + ((hash >>> 7) % 4)) % NODE_LAYOUT.length;
   const tertiary = (primary + 5 + ((hash >>> 11) % 2)) % NODE_LAYOUT.length;
