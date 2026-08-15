@@ -25,15 +25,15 @@ export const games: Game[] = [
     playable: true
   },
   {
-    slug: "synapse-pinball",
-    eyebrow: "Featured / Production Flight 02",
-    title: "Synapse Pinball",
-    description: "High-velocity 3D pinball inside a quantum optical mainframe. Chain laser prism bumpers, fiber-optic ramps, and superconducting bus loops.",
+    slug: "orbital-pinball",
+    eyebrow: "Featured / Visual Prototype 02",
+    title: "Orbital Pinball",
+    description: "Frameless pinball suspended in open space. Keep a relay field alive through precision flipper play, node banks, orbital loops, and escalating chains.",
     genre: "Kinetic 3D pinball",
     session: "3 min",
-    mode: "production",
+    mode: "visual-gate",
     accent: "cyan",
-    tags: ["3D", "Physics", "Daily route"],
+    tags: ["3D", "Physics", "Skill"],
     playable: true
   },
   {

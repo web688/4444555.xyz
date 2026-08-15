@@ -1,8 +1,8 @@
-export const SYNAPSE_PINBALL_VERSION = "0.1.0";
-export const SYNAPSE_PINBALL_TARGET_SECONDS = 180;
-export const SYNAPSE_PINBALL_PROGRESS_EVENT = "4444555:synapse-pinball-progress";
+export const ORBITAL_PINBALL_VERSION = "0.1.0";
+export const ORBITAL_PINBALL_TARGET_SECONDS = 180;
+export const ORBITAL_PINBALL_PROGRESS_EVENT = "4444555:orbital-pinball-progress";
 
-const STORAGE_KEY = "4444555.synapse-pinball.progress.v1";
+const STORAGE_KEY = "4444555.orbital-pinball.progress.v1";
 const MAX_RECENT_RUNS = 8;
 
 export type PinballMedal = "none" | "bronze" | "silver" | "gold";
@@ -16,10 +16,10 @@ export type PinballRunResult = {
   durationSeconds: number;
   medal: PinballMedal;
   bumperHits: number;
-  rampLoops: number;
+  targetsCleared: number;
   maxMultiplier: number;
   ballsPlayed: number;
-  targetsCleared: number;
+  relayLoops: number;
 };
 
 export type PinballProgress = {
@@ -33,7 +33,7 @@ export type PinballProgress = {
 
 export const emptyPinballProgress = (): PinballProgress => ({
   schemaVersion: 1,
-  gameVersion: SYNAPSE_PINBALL_VERSION,
+  gameVersion: ORBITAL_PINBALL_VERSION,
   bestScore: 0,
   totalRuns: 0,
   completions: 0,
@@ -48,31 +48,11 @@ export function getDailyRouteKey(date = new Date()) {
   ].join("-");
 }
 
-export function hashRouteSeed(value: string) {
-  let hash = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
-}
-
-export function createSeededRandom(seed: number) {
-  let state = seed || 0x4444555;
-  return () => {
-    state += 0x6d2b79f5;
-    let value = state;
-    value = Math.imul(value ^ (value >>> 15), value | 1);
-    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
-    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
 export function medalForPinballRun(score: number, completed: boolean): PinballMedal {
-  if (!completed && score < 25_000) return "none";
-  if (score >= 120_000) return "gold";
-  if (score >= 60_000) return "silver";
-  if (score >= 25_000) return "bronze";
+  if (!completed && score < 20_000) return "none";
+  if (score >= 100_000) return "gold";
+  if (score >= 50_000) return "silver";
+  if (score >= 20_000) return "bronze";
   return "none";
 }
 
@@ -83,7 +63,7 @@ export function loadPinballProgress(): PinballProgress {
     if (!parsed || parsed.schemaVersion !== 1 || !Array.isArray(parsed.recentRuns)) return emptyPinballProgress();
     return {
       schemaVersion: 1,
-      gameVersion: typeof parsed.gameVersion === "string" ? parsed.gameVersion : SYNAPSE_PINBALL_VERSION,
+      gameVersion: typeof parsed.gameVersion === "string" ? parsed.gameVersion : ORBITAL_PINBALL_VERSION,
       bestScore: Math.max(0, Number(parsed.bestScore) || 0),
       totalRuns: Math.max(0, Number(parsed.totalRuns) || 0),
       completions: Math.max(0, Number(parsed.completions) || 0),
@@ -104,7 +84,7 @@ export function recordPinballRun(result: Omit<PinballRunResult, "id" | "endedAt"
   };
   const progress: PinballProgress = {
     schemaVersion: 1,
-    gameVersion: SYNAPSE_PINBALL_VERSION,
+    gameVersion: ORBITAL_PINBALL_VERSION,
     bestScore: Math.max(previous.bestScore, run.score),
     totalRuns: previous.totalRuns + 1,
     completions: previous.completions + Number(run.completed),
@@ -112,9 +92,9 @@ export function recordPinballRun(result: Omit<PinballRunResult, "id" | "endedAt"
   };
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
-    window.dispatchEvent(new CustomEvent(SYNAPSE_PINBALL_PROGRESS_EVENT, { detail: progress }));
+    window.dispatchEvent(new CustomEvent(ORBITAL_PINBALL_PROGRESS_EVENT, { detail: progress }));
   } catch {
-    // Gracefully handle storage disabled/blocked
+    // Storage can be blocked; gameplay must remain available.
   }
   return { progress, run, isNewBest: run.score > previous.bestScore };
 }

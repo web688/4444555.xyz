@@ -1,11 +1,11 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { games } from "./catalog";
 import { GRAVITY_COURIER_PROGRESS_EVENT, loadCourierProgress, type CourierProgress } from "./games/gravity-courier/progress";
-import { SYNAPSE_PINBALL_PROGRESS_EVENT, loadPinballProgress, type PinballProgress } from "./games/synapse-pinball/progress";
+import { ORBITAL_PINBALL_PROGRESS_EVENT, loadPinballProgress, type PinballProgress } from "./games/orbital-pinball/progress";
 
 const Arrow = () => <span aria-hidden="true">↗</span>;
 const GravityCourierGate = lazy(() => import("./games/gravity-courier/GravityCourierGate"));
-const SynapsePinballGate = lazy(() => import("./games/synapse-pinball/SynapsePinballGate"));
+const OrbitalPinballGate = lazy(() => import("./games/orbital-pinball/OrbitalPinballGate"));
 
 export function App() {
   const [query, setQuery] = useState("");
@@ -23,12 +23,12 @@ export function App() {
       setPinballProgress(detail ?? loadPinballProgress());
     };
     window.addEventListener(GRAVITY_COURIER_PROGRESS_EVENT, syncCourier);
-    window.addEventListener(SYNAPSE_PINBALL_PROGRESS_EVENT, syncPinball);
+    window.addEventListener(ORBITAL_PINBALL_PROGRESS_EVENT, syncPinball);
     window.addEventListener("storage", syncCourier);
     window.addEventListener("storage", syncPinball);
     return () => {
       window.removeEventListener(GRAVITY_COURIER_PROGRESS_EVENT, syncCourier);
-      window.removeEventListener(SYNAPSE_PINBALL_PROGRESS_EVENT, syncPinball);
+      window.removeEventListener(ORBITAL_PINBALL_PROGRESS_EVENT, syncPinball);
       window.removeEventListener("storage", syncCourier);
       window.removeEventListener("storage", syncPinball);
     };
@@ -101,8 +101,8 @@ export function App() {
                       <div className="recent-runs"><span>RECENT</span>{courierProgress.recentRuns.length === 0 ? <small>NO RUNS YET</small> : courierProgress.recentRuns.slice(0, 3).map((run) => <i className={run.medal} key={run.id} title={`${run.medal} · ${run.score.toLocaleString("en-US")}`}>{run.score.toLocaleString("en-US")}</i>)}</div>
                     </section>
                   )}
-                  {game.slug === "synapse-pinball" && (
-                    <section className="flight-record" aria-label="Synapse Pinball local flight record">
+                  {game.slug === "orbital-pinball" && (
+                    <section className="flight-record" aria-label="Orbital Pinball local play record">
                       <div><span>LOCAL BEST</span><strong>{pinballProgress.bestScore.toLocaleString("en-US").padStart(7, "0")}</strong></div>
                       <div><span>SESSIONS</span><strong>{pinballProgress.completions} / {pinballProgress.totalRuns}</strong></div>
                       <div className="recent-runs"><span>RECENT</span>{pinballProgress.recentRuns.length === 0 ? <small>NO RUNS YET</small> : pinballProgress.recentRuns.slice(0, 3).map((run) => <i className={run.medal} key={run.id} title={`${run.medal} · ${run.score.toLocaleString("en-US")}`}>{run.score.toLocaleString("en-US")}</i>)}</div>
@@ -139,9 +139,9 @@ export function App() {
           <GravityCourierGate onExit={() => setActiveGame(null)} />
         </Suspense>
       )}
-      {activeGame === "synapse-pinball" && (
-        <Suspense fallback={<div className="gate-loading" role="status"><span />Loading optical mainframe…</div>}>
-          <SynapsePinballGate onExit={() => setActiveGame(null)} />
+      {activeGame === "orbital-pinball" && (
+        <Suspense fallback={<div className="gate-loading" role="status"><span />Arming relay field…</div>}>
+          <OrbitalPinballGate onExit={() => setActiveGame(null)} />
         </Suspense>
       )}
     </div>
