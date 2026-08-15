@@ -25,18 +25,6 @@ export const games: Game[] = [
     playable: true
   },
   {
-    slug: "orbital-pinball",
-    eyebrow: "Featured / Visual Prototype 02",
-    title: "Orbital Pinball",
-    description: "Frameless pinball suspended in open space. Keep a relay field alive through precision flipper play, node banks, orbital loops, and escalating chains.",
-    genre: "Kinetic 3D pinball",
-    session: "3 min",
-    mode: "visual-gate",
-    accent: "cyan",
-    tags: ["3D", "Physics", "Skill"],
-    playable: true
-  },
-  {
     slug: "echo-vector",
     eyebrow: "Concept 02",
     title: "Echo Vector",
