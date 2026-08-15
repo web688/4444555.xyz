@@ -1,38 +1,28 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { games } from "./catalog";
 import { GRAVITY_COURIER_PROGRESS_EVENT, loadCourierProgress, type CourierProgress } from "./games/gravity-courier/progress";
-import { ORBITAL_PINBALL_PROGRESS_EVENT, loadPinballProgress, type PinballProgress } from "./games/orbital-pinball/progress";
 
 const Arrow = () => <span aria-hidden="true">↗</span>;
 const GravityCourierGate = lazy(() => import("./games/gravity-courier/GravityCourierGate"));
-const OrbitalPinballGate = lazy(() => import("./games/orbital-pinball/OrbitalPinballGate"));
 
 export function App() {
   const [query, setQuery] = useState("");
   const [activeGame, setActiveGame] = useState<string | null>(null);
   const [courierProgress, setCourierProgress] = useState(loadCourierProgress);
-  const [pinballProgress, setPinballProgress] = useState(loadPinballProgress);
 
   useEffect(() => {
     const syncCourier = (event?: Event) => {
       const detail = (event as CustomEvent<CourierProgress> | undefined)?.detail;
       setCourierProgress(detail ?? loadCourierProgress());
     };
-    const syncPinball = (event?: Event) => {
-      const detail = (event as CustomEvent<PinballProgress> | undefined)?.detail;
-      setPinballProgress(detail ?? loadPinballProgress());
-    };
     window.addEventListener(GRAVITY_COURIER_PROGRESS_EVENT, syncCourier);
-    window.addEventListener(ORBITAL_PINBALL_PROGRESS_EVENT, syncPinball);
     window.addEventListener("storage", syncCourier);
-    window.addEventListener("storage", syncPinball);
     return () => {
       window.removeEventListener(GRAVITY_COURIER_PROGRESS_EVENT, syncCourier);
-      window.removeEventListener(ORBITAL_PINBALL_PROGRESS_EVENT, syncPinball);
       window.removeEventListener("storage", syncCourier);
-      window.removeEventListener("storage", syncPinball);
     };
   }, []);
+
   const visibleGames = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return games;
@@ -101,13 +91,6 @@ export function App() {
                       <div className="recent-runs"><span>RECENT</span>{courierProgress.recentRuns.length === 0 ? <small>NO RUNS YET</small> : courierProgress.recentRuns.slice(0, 3).map((run) => <i className={run.medal} key={run.id} title={`${run.medal} · ${run.score.toLocaleString("en-US")}`}>{run.score.toLocaleString("en-US")}</i>)}</div>
                     </section>
                   )}
-                  {game.slug === "orbital-pinball" && (
-                    <section className="flight-record" aria-label="Orbital Pinball local play record">
-                      <div><span>LOCAL BEST</span><strong>{pinballProgress.bestScore.toLocaleString("en-US").padStart(7, "0")}</strong></div>
-                      <div><span>SESSIONS</span><strong>{pinballProgress.completions} / {pinballProgress.totalRuns}</strong></div>
-                      <div className="recent-runs"><span>RECENT</span>{pinballProgress.recentRuns.length === 0 ? <small>NO RUNS YET</small> : pinballProgress.recentRuns.slice(0, 3).map((run) => <i className={run.medal} key={run.id} title={`${run.medal} · ${run.score.toLocaleString("en-US")}`}>{run.score.toLocaleString("en-US")}</i>)}</div>
-                    </section>
-                  )}
                   <div className="tag-row">{game.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
                   <footer><span>{game.genre}</span><span>{game.session}</span><button aria-label={game.playable ? `Launch ${game.title}` : `View ${game.title} concept`} disabled={!game.playable} onClick={() => game.playable && setActiveGame(game.slug)}><Arrow /></button></footer>
                 </div>
@@ -137,11 +120,6 @@ export function App() {
       {activeGame === "gravity-courier" && (
         <Suspense fallback={<div className="gate-loading" role="status"><span />Loading orbital lane…</div>}>
           <GravityCourierGate onExit={() => setActiveGame(null)} />
-        </Suspense>
-      )}
-      {activeGame === "orbital-pinball" && (
-        <Suspense fallback={<div className="gate-loading" role="status"><span />Arming relay field…</div>}>
-          <OrbitalPinballGate onExit={() => setActiveGame(null)} />
         </Suspense>
       )}
     </div>
