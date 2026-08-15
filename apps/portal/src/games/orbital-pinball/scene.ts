@@ -272,7 +272,10 @@ export async function createOrbitalPinballScene(
   const wallSegments: Segment[] = [];
   const addPathSegments = (points: Array<[number, number]>) => {
     for (let index = 0; index < points.length - 1; index += 1) {
-      wallSegments.push({ ax: points[index][0], az: points[index][1], bx: points[index + 1][0], bz: points[index + 1][1] });
+      const start = points[index];
+      const end = points[index + 1];
+      if (!start || !end) continue;
+      wallSegments.push({ ax: start[0], az: start[1], bx: end[0], bz: end[1] });
     }
   };
   addPathSegments(leftRail);
