@@ -1,15 +1,19 @@
 name: Deploy Pages
+
 on:
   push:
     branches: [main]
   workflow_dispatch:
+
 permissions:
   contents: read
   pages: write
   id-token: write
+
 concurrency:
   group: pages
   cancel-in-progress: true
+
 jobs:
   deploy:
     environment:
@@ -23,7 +27,21 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run build
+      - name: Build production
+        run: npm run build
+      - name: Build default /test mirror
+        run: npm run build --workspace @4444555/portal -- --base=/test/ --outDir=dist-test
+      - name: Assemble and validate Pages artifact
+        run: |
+          mkdir -p apps/portal/dist/test
+          cp -a apps/portal/dist-test/. apps/portal/dist/test/
+          rm -f apps/portal/dist/test/CNAME
+          test -f apps/portal/dist/index.html
+          test -f apps/portal/dist/CNAME
+          test -f apps/portal/dist/.nojekyll
+          test -f apps/portal/dist/test/index.html
+          grep -q 'src="/assets/index-' apps/portal/dist/index.html
+          grep -q 'src="/test/assets/index-' apps/portal/dist/test/index.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
