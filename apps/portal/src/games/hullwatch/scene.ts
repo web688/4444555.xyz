@@ -286,7 +286,7 @@ export async function createHullwatchScene(
       ? new Vector3((random() - 0.5) * 10, -1.2 + random() * 2, 8 + random() * 14)
       : new Vector3((random() - 0.5) * 15, -0.5 + random() * 4, 4 + random() * 12);
     const direction = target.subtract(root.position).normalize();
-    const speed = torpedo ? 22 : 34;
+    const speed = torpedo ? (mobileTier ? 14 : 12) : 34;
 
     if (torpedo) {
       const body = CreateCylinder("torpedo-body", { height: 2.6, diameter: 0.52, tessellation: 8 }, scene);
@@ -302,6 +302,7 @@ export async function createHullwatchScene(
       tail.position.z = 1.65;
       tail.material = materials.torpedoHot;
       tail.parent = root;
+      root.scaling.setAll(mobileTier ? 1.55 : 2.1);
       root.lookAt(target);
     } else {
       const bolt = CreateBox("hostile-bolt", { width: 0.12, height: 0.12, depth: 2.2 }, scene);
@@ -386,7 +387,7 @@ export async function createHullwatchScene(
       const distance = offset.length();
       if (distance <= 0.01) continue;
       const dot = Vector3.Dot(offset.scale(1 / distance), forward);
-      if (dot < 0.9945) continue;
+      if (dot < 0.9915) continue;
       const value = dot * 4 - distance * 0.0015 + 1.4;
       if (value > bestValue) {
         bestValue = value;
