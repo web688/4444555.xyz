@@ -1,74 +1,137 @@
 export class HullwatchAudio {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
+  private lowVoice: OscillatorNode | null = null;
+  private lowGain: GainNode | null = null;
+  private highVoice: OscillatorNode | null = null;
+  private highGain: GainNode | null = null;
+  private cueVoice: OscillatorNode | null = null;
+  private cueGain: GainNode | null = null;
   private muted = false;
 
   async arm() {
-    if (!this.context) {
-      this.context = new AudioContext();
-      this.master = this.context.createGain();
-      this.master.gain.value = this.muted ? 0 : 0.22;
-      this.master.connect(this.context.destination);
+    try {
+      if (!this.context) {
+        const context = new AudioContext();
+        const master = context.createGain();
+        master.gain.value = this.muted ? 0 : 0.22;
+        master.connect(context.destination);
+
+        const makeVoice = (type: OscillatorType, frequency: number) => {
+          const oscillator = context.createOscillator();
+          const gain = context.createGain();
+          oscillator.type = type;
+          oscillator.frequency.value = frequency;
+          gain.gain.value = 0.0001;
+          oscillator.connect(gain);
+          gain.connect(master);
+          oscillator.start();
+          return { oscillator, gain };
+        };
+
+        const low = makeVoice("square", 92);
+        const high = makeVoice("triangle", 640);
+        const cue = makeVoice("sine", 920);
+
+        this.context = context;
+        this.master = master;
+        this.lowVoice = low.oscillator;
+        this.lowGain = low.gain;
+        this.highVoice = high.oscillator;
+        this.highGain = high.gain;
+        this.cueVoice = cue.oscillator;
+        this.cueGain = cue.gain;
+      }
+      if (this.context.state === "suspended") await this.context.resume();
+    } catch {
+      // Audio must never be able to stall or terminate the render loop.
     }
-    if (this.context.state === "suspended") await this.context.resume();
   }
 
   setMuted(muted: boolean) {
     this.muted = muted;
-    if (this.master && this.context) {
-      this.master.gain.setTargetAtTime(muted ? 0 : 0.22, this.context.currentTime, 0.02);
+    const context = this.context;
+    const master = this.master;
+    if (!master || !context) return;
+    try {
+      master.gain.cancelScheduledValues(context.currentTime);
+      master.gain.setTargetAtTime(muted ? 0 : 0.22, context.currentTime, 0.02);
+    } catch {
+      // Keep gameplay independent from WebAudio failures.
     }
   }
 
-  private tone(frequency: number, duration: number, gain: number, type: OscillatorType, endFrequency?: number) {
+  private pulse(
+    oscillator: OscillatorNode | null,
+    envelope: GainNode | null,
+    startFrequency: number,
+    endFrequency: number,
+    duration: number,
+    peak: number,
+    type?: OscillatorType,
+  ) {
     const context = this.context;
-    const master = this.master;
-    if (!context || !master || this.muted) return;
-    const now = context.currentTime;
-    const oscillator = context.createOscillator();
-    const envelope = context.createGain();
-    oscillator.type = type;
-    oscillator.frequency.setValueAtTime(frequency, now);
-    if (endFrequency) oscillator.frequency.exponentialRampToValueAtTime(Math.max(20, endFrequency), now + duration);
-    envelope.gain.setValueAtTime(0.0001, now);
-    envelope.gain.exponentialRampToValueAtTime(gain, now + Math.min(0.012, duration * 0.2));
-    envelope.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-    oscillator.connect(envelope);
-    envelope.connect(master);
-    oscillator.start(now);
-    oscillator.stop(now + duration + 0.02);
+    if (!context || !oscillator || !envelope || this.muted) return;
+    try {
+      const now = context.currentTime;
+      if (type) oscillator.type = type;
+      oscillator.frequency.cancelScheduledValues(now);
+      oscillator.frequency.setValueAtTime(Math.max(20, startFrequency), now);
+      oscillator.frequency.exponentialRampToValueAtTime(Math.max(20, endFrequency), now + duration);
+      envelope.gain.cancelScheduledValues(now);
+      envelope.gain.setValueAtTime(0.0001, now);
+      envelope.gain.exponentialRampToValueAtTime(peak, now + Math.min(0.01, duration * 0.2));
+      envelope.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    } catch {
+      // A sound cue may be dropped, but simulation/rendering continues.
+    }
   }
 
   shot() {
-    this.tone(92, 0.07, 0.34, "square", 48);
-    this.tone(640, 0.035, 0.055, "triangle", 260);
+    this.pulse(this.lowVoice, this.lowGain, 92, 48, 0.07, 0.34, "square");
+    this.pulse(this.highVoice, this.highGain, 640, 260, 0.035, 0.055, "triangle");
   }
 
   hit() {
-    this.tone(1180, 0.035, 0.08, "sine", 820);
+    this.pulse(this.cueVoice, this.cueGain, 1180, 820, 0.035, 0.08, "sine");
   }
 
   kill() {
-    this.tone(180, 0.16, 0.13, "sawtooth", 58);
-    this.tone(920, 0.08, 0.05, "triangle", 380);
+    this.pulse(this.lowVoice, this.lowGain, 180, 58, 0.16, 0.13, "sawtooth");
+    this.pulse(this.cueVoice, this.cueGain, 920, 380, 0.08, 0.05, "triangle");
   }
 
   intercept() {
-    this.tone(1320, 0.09, 0.08, "sine", 540);
+    this.pulse(this.cueVoice, this.cueGain, 1320, 540, 0.09, 0.08, "sine");
   }
 
   impact() {
-    this.tone(72, 0.22, 0.25, "sawtooth", 30);
+    this.pulse(this.lowVoice, this.lowGain, 72, 30, 0.22, 0.25, "sawtooth");
   }
 
   overheat() {
-    this.tone(430, 0.16, 0.08, "square", 160);
+    this.pulse(this.cueVoice, this.cueGain, 430, 160, 0.16, 0.08, "square");
   }
 
   destroy() {
     const context = this.context;
+    const voices = [this.lowVoice, this.highVoice, this.cueVoice];
     this.context = null;
     this.master = null;
-    if (context && context.state !== "closed") void context.close();
+    this.lowVoice = null;
+    this.lowGain = null;
+    this.highVoice = null;
+    this.highGain = null;
+    this.cueVoice = null;
+    this.cueGain = null;
+    for (const voice of voices) {
+      if (!voice) continue;
+      try {
+        voice.stop();
+      } catch {
+        // Already stopped/closed.
+      }
+    }
+    if (context && context.state !== "closed") void context.close().catch(() => undefined);
   }
 }
