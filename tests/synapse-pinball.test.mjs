@@ -37,6 +37,7 @@ test("Synapse Pinball progress persistence and medal calculations are consistent
   );
   assert.ok(sceneModule.includes("createSynapsePinballScene"));
   assert.ok(sceneModule.includes("bumperCoords"));
-  assert.ok(sceneModule.includes("flipperLeftMesh"));
-  assert.ok(sceneModule.includes("flipperRightMesh"));
+  assert.ok(sceneModule.includes("createDetailedFlipper"));
+  assert.ok(sceneModule.includes("createWireformRamp"));
 });
+
