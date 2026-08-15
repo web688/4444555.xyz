@@ -1,8 +1,8 @@
-export class SlingshotAudio {
+export class PinballAudio {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
-  private gravityDroneGain: GainNode | null = null;
-  private gravityDroneOsc: OscillatorNode | null = null;
+  private vortexGain: GainNode | null = null;
+  private vortexOsc: OscillatorNode | null = null;
   private muted = false;
 
   async arm() {
@@ -17,117 +17,128 @@ export class SlingshotAudio {
     }
   }
 
-  updateGravityProximity(intensity: number) {
-    if (!this.context || !this.gravityDroneGain || !this.gravityDroneOsc || this.muted) return;
+  setVortex(active: boolean, intensity = 1) {
+    if (!this.context || !this.vortexGain || !this.vortexOsc || this.muted) return;
     const clamped = Math.max(0, Math.min(1, intensity));
-    const targetFreq = 48 + clamped * 72;
-    const targetGain = 0.01 + clamped * 0.08;
-    this.gravityDroneOsc.frequency.setTargetAtTime(targetFreq, this.context.currentTime, 0.08);
-    this.gravityDroneGain.gain.setTargetAtTime(targetGain, this.context.currentTime, 0.08);
+    const targetGain = active ? 0.02 + clamped * 0.06 : 0.0001;
+    const targetFreq = 64 + clamped * 120;
+    this.vortexOsc.frequency.setTargetAtTime(targetFreq, this.context.currentTime, 0.05);
+    this.vortexGain.gain.setTargetAtTime(targetGain, this.context.currentTime, 0.05);
   }
 
-  launch() {
+  flipper() {
     if (!this.context || !this.master || this.muted) return;
     const now = this.context.currentTime;
+    const osc = this.context.createOscillator();
+    const gain = this.context.createGain();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(240, now);
+    osc.frequency.exponentialRampToValueAtTime(60, now + 0.06);
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.07);
+    osc.connect(gain).connect(this.master);
+    osc.start(now);
+    osc.stop(now + 0.08);
+  }
+
+  bumper(index = 0) {
+    if (!this.context || !this.master || this.muted) return;
+    const now = this.context.currentTime;
+    const scale = [523.25, 659.25, 783.99, 1046.5, 1318.51];
+    const freq = scale[index % scale.length] ?? 523.25;
+
     const osc = this.context.createOscillator();
     const gain = this.context.createGain();
     osc.type = "sine";
-    osc.frequency.setValueAtTime(140, now);
-    osc.frequency.exponentialRampToValueAtTime(540, now + 0.32);
-    gain.gain.setValueAtTime(0.001, now);
-    gain.gain.exponentialRampToValueAtTime(0.2, now + 0.04);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
-    osc.connect(gain).connect(this.master);
-    osc.start(now);
-    osc.stop(now + 0.36);
-  }
-
-  slingshot(multiplier = 1) {
-    if (!this.context || !this.master || this.muted) return;
-    const now = this.context.currentTime;
-    const osc = this.context.createOscillator();
-    const gain = this.context.createGain();
-    osc.type = "triangle";
-    osc.frequency.setValueAtTime(320 + multiplier * 60, now);
-    osc.frequency.exponentialRampToValueAtTime(840 + multiplier * 80, now + 0.26);
-    gain.gain.setValueAtTime(0.001, now);
-    gain.gain.exponentialRampToValueAtTime(0.18, now + 0.03);
+    osc.frequency.setValueAtTime(freq, now);
+    osc.frequency.exponentialRampToValueAtTime(freq * 1.5, now + 0.04);
+    osc.frequency.exponentialRampToValueAtTime(freq, now + 0.22);
+    gain.gain.setValueAtTime(0.25, now);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
     osc.connect(gain).connect(this.master);
     osc.start(now);
     osc.stop(now + 0.3);
   }
 
-  beaconPickup(index = 0) {
+  rampWhoosh() {
     if (!this.context || !this.master || this.muted) return;
     const now = this.context.currentTime;
-    const frequencies = [587.33, 659.25, 880.0, 1046.5, 1318.51];
-    const freq = frequencies[index % frequencies.length] ?? 587.33;
     const osc = this.context.createOscillator();
     const gain = this.context.createGain();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(freq, now);
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(220, now);
+    osc.frequency.exponentialRampToValueAtTime(880, now + 0.35);
     gain.gain.setValueAtTime(0.001, now);
-    gain.gain.exponentialRampToValueAtTime(0.16, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.18, now + 0.06);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.4);
     osc.connect(gain).connect(this.master);
     osc.start(now);
     osc.stop(now + 0.42);
   }
 
-  thrusterBurn() {
-    if (!this.context || !this.master || this.muted) return;
-    this.noiseBurst(0.15, 0.12, 450);
-  }
-
-  hit() {
+  targetHit() {
     if (!this.context || !this.master || this.muted) return;
     const now = this.context.currentTime;
     const osc = this.context.createOscillator();
     const gain = this.context.createGain();
-    osc.type = "sawtooth";
-    osc.frequency.setValueAtTime(110, now);
-    osc.frequency.exponentialRampToValueAtTime(28, now + 0.45);
-    gain.gain.setValueAtTime(0.25, now);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.48);
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(440, now);
+    osc.frequency.exponentialRampToValueAtTime(880, now + 0.08);
+    gain.gain.setValueAtTime(0.18, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
     osc.connect(gain).connect(this.master);
     osc.start(now);
-    osc.stop(now + 0.5);
-    this.noiseBurst(0.22, 0.25, 600);
+    osc.stop(now + 0.14);
   }
 
-  dockingComplete() {
+  plungerRelease() {
     if (!this.context || !this.master || this.muted) return;
     const now = this.context.currentTime;
-    [440, 554.37, 659.25, 880].forEach((frequency, index) => {
+    const osc = this.context.createOscillator();
+    const gain = this.context.createGain();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(90, now);
+    osc.frequency.exponentialRampToValueAtTime(360, now + 0.12);
+    gain.gain.setValueAtTime(0.28, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+    osc.connect(gain).connect(this.master);
+    osc.start(now);
+    osc.stop(now + 0.2);
+    this.noiseBurst(0.08, 0.18, 1200);
+  }
+
+  drain() {
+    if (!this.context || !this.master || this.muted) return;
+    const now = this.context.currentTime;
+    [220, 164.81, 110].forEach((freq, idx) => {
       const osc = this.context!.createOscillator();
       const gain = this.context!.createGain();
-      osc.type = "sine";
-      osc.frequency.value = frequency;
-      gain.gain.setValueAtTime(0.0001, now + index * 0.07);
-      gain.gain.exponentialRampToValueAtTime(0.12, now + index * 0.07 + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.65);
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(freq, now + idx * 0.12);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.6, now + idx * 0.12 + 0.28);
+      gain.gain.setValueAtTime(0.0001, now + idx * 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.12, now + idx * 0.12 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.12 + 0.32);
       osc.connect(gain).connect(this.master!);
-      osc.start(now + index * 0.07);
-      osc.stop(now + 0.7);
+      osc.start(now + idx * 0.12);
+      osc.stop(now + idx * 0.12 + 0.35);
     });
   }
 
-  fail() {
+  complete() {
     if (!this.context || !this.master || this.muted) return;
     const now = this.context.currentTime;
-    [160, 120, 80].forEach((frequency, index) => {
+    [523.25, 659.25, 783.99, 1046.5].forEach((freq, idx) => {
       const osc = this.context!.createOscillator();
       const gain = this.context!.createGain();
-      osc.type = "triangle";
-      osc.frequency.setValueAtTime(frequency, now + index * 0.12);
-      osc.frequency.exponentialRampToValueAtTime(frequency * 0.5, now + 0.7);
-      gain.gain.setValueAtTime(0.0001, now + index * 0.12);
-      gain.gain.exponentialRampToValueAtTime(0.1, now + index * 0.12 + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.75);
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, now + idx * 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.14, now + idx * 0.08 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.7);
       osc.connect(gain).connect(this.master!);
-      osc.start(now + index * 0.12);
-      osc.stop(now + 0.78);
+      osc.start(now + idx * 0.08);
+      osc.stop(now + 0.75);
     });
   }
 
@@ -135,8 +146,8 @@ export class SlingshotAudio {
     void this.context?.close();
     this.context = null;
     this.master = null;
-    this.gravityDroneGain = null;
-    this.gravityDroneOsc = null;
+    this.vortexGain = null;
+    this.vortexOsc = null;
   }
 
   private createGraph() {
@@ -146,18 +157,18 @@ export class SlingshotAudio {
     master.gain.value = this.muted ? 0 : 0.22;
     master.connect(context.destination);
 
-    const drone = context.createOscillator();
-    const droneGain = context.createGain();
-    drone.type = "sine";
-    drone.frequency.value = 52;
-    droneGain.gain.value = 0.015;
-    drone.connect(droneGain).connect(master);
-    drone.start();
+    const osc = context.createOscillator();
+    const gain = context.createGain();
+    osc.type = "sine";
+    osc.frequency.value = 64;
+    gain.gain.value = 0.0001;
+    osc.connect(gain).connect(master);
+    osc.start();
 
     this.context = context;
     this.master = master;
-    this.gravityDroneGain = droneGain;
-    this.gravityDroneOsc = drone;
+    this.vortexGain = gain;
+    this.vortexOsc = osc;
   }
 
   private noiseBurst(duration: number, volume: number, cutoff = 800) {

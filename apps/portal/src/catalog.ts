@@ -25,15 +25,15 @@ export const games: Game[] = [
     playable: true
   },
   {
-    slug: "orbital-slingshot",
+    slug: "synapse-pinball",
     eyebrow: "Featured / Production Flight 02",
-    title: "Orbital Slingshot",
-    description: "Plot gravitational slingshots through collapsing star systems. Harness orbital velocity to collect telemetry and dock with extraction gates.",
-    genre: "Orbital mechanics",
-    session: "2 min",
+    title: "Synapse Pinball",
+    description: "High-velocity 3D pinball inside a quantum optical mainframe. Chain laser prism bumpers, fiber-optic ramps, and superconducting bus loops.",
+    genre: "Kinetic 3D pinball",
+    session: "3 min",
     mode: "production",
     accent: "cyan",
-    tags: ["2D", "Gravity physics", "Daily route"],
+    tags: ["3D", "Physics", "Daily route"],
     playable: true
   },
   {

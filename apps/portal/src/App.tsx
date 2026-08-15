@@ -1,36 +1,36 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { games } from "./catalog";
 import { GRAVITY_COURIER_PROGRESS_EVENT, loadCourierProgress, type CourierProgress } from "./games/gravity-courier/progress";
-import { ORBITAL_SLINGSHOT_PROGRESS_EVENT, loadSlingshotProgress, type SlingshotProgress } from "./games/orbital-slingshot/progress";
+import { SYNAPSE_PINBALL_PROGRESS_EVENT, loadPinballProgress, type PinballProgress } from "./games/synapse-pinball/progress";
 
 const Arrow = () => <span aria-hidden="true">↗</span>;
 const GravityCourierGate = lazy(() => import("./games/gravity-courier/GravityCourierGate"));
-const OrbitalSlingshotGate = lazy(() => import("./games/orbital-slingshot/OrbitalSlingshotGate"));
+const SynapsePinballGate = lazy(() => import("./games/synapse-pinball/SynapsePinballGate"));
 
 export function App() {
   const [query, setQuery] = useState("");
   const [activeGame, setActiveGame] = useState<string | null>(null);
   const [courierProgress, setCourierProgress] = useState(loadCourierProgress);
-  const [slingshotProgress, setSlingshotProgress] = useState(loadSlingshotProgress);
+  const [pinballProgress, setPinballProgress] = useState(loadPinballProgress);
 
   useEffect(() => {
     const syncCourier = (event?: Event) => {
       const detail = (event as CustomEvent<CourierProgress> | undefined)?.detail;
       setCourierProgress(detail ?? loadCourierProgress());
     };
-    const syncSlingshot = (event?: Event) => {
-      const detail = (event as CustomEvent<SlingshotProgress> | undefined)?.detail;
-      setSlingshotProgress(detail ?? loadSlingshotProgress());
+    const syncPinball = (event?: Event) => {
+      const detail = (event as CustomEvent<PinballProgress> | undefined)?.detail;
+      setPinballProgress(detail ?? loadPinballProgress());
     };
     window.addEventListener(GRAVITY_COURIER_PROGRESS_EVENT, syncCourier);
-    window.addEventListener(ORBITAL_SLINGSHOT_PROGRESS_EVENT, syncSlingshot);
+    window.addEventListener(SYNAPSE_PINBALL_PROGRESS_EVENT, syncPinball);
     window.addEventListener("storage", syncCourier);
-    window.addEventListener("storage", syncSlingshot);
+    window.addEventListener("storage", syncPinball);
     return () => {
       window.removeEventListener(GRAVITY_COURIER_PROGRESS_EVENT, syncCourier);
-      window.removeEventListener(ORBITAL_SLINGSHOT_PROGRESS_EVENT, syncSlingshot);
+      window.removeEventListener(SYNAPSE_PINBALL_PROGRESS_EVENT, syncPinball);
       window.removeEventListener("storage", syncCourier);
-      window.removeEventListener("storage", syncSlingshot);
+      window.removeEventListener("storage", syncPinball);
     };
   }, []);
   const visibleGames = useMemo(() => {
@@ -101,11 +101,11 @@ export function App() {
                       <div className="recent-runs"><span>RECENT</span>{courierProgress.recentRuns.length === 0 ? <small>NO RUNS YET</small> : courierProgress.recentRuns.slice(0, 3).map((run) => <i className={run.medal} key={run.id} title={`${run.medal} · ${run.score.toLocaleString("en-US")}`}>{run.score.toLocaleString("en-US")}</i>)}</div>
                     </section>
                   )}
-                  {game.slug === "orbital-slingshot" && (
-                    <section className="flight-record" aria-label="Orbital Slingshot local flight record">
-                      <div><span>LOCAL BEST</span><strong>{slingshotProgress.bestScore.toLocaleString("en-US").padStart(7, "0")}</strong></div>
-                      <div><span>INSERTIONS</span><strong>{slingshotProgress.insertions} / {slingshotProgress.totalRuns}</strong></div>
-                      <div className="recent-runs"><span>RECENT</span>{slingshotProgress.recentRuns.length === 0 ? <small>NO RUNS YET</small> : slingshotProgress.recentRuns.slice(0, 3).map((run) => <i className={run.medal} key={run.id} title={`${run.medal} · ${run.score.toLocaleString("en-US")}`}>{run.score.toLocaleString("en-US")}</i>)}</div>
+                  {game.slug === "synapse-pinball" && (
+                    <section className="flight-record" aria-label="Synapse Pinball local flight record">
+                      <div><span>LOCAL BEST</span><strong>{pinballProgress.bestScore.toLocaleString("en-US").padStart(7, "0")}</strong></div>
+                      <div><span>SESSIONS</span><strong>{pinballProgress.completions} / {pinballProgress.totalRuns}</strong></div>
+                      <div className="recent-runs"><span>RECENT</span>{pinballProgress.recentRuns.length === 0 ? <small>NO RUNS YET</small> : pinballProgress.recentRuns.slice(0, 3).map((run) => <i className={run.medal} key={run.id} title={`${run.medal} · ${run.score.toLocaleString("en-US")}`}>{run.score.toLocaleString("en-US")}</i>)}</div>
                     </section>
                   )}
                   <div className="tag-row">{game.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
@@ -139,9 +139,9 @@ export function App() {
           <GravityCourierGate onExit={() => setActiveGame(null)} />
         </Suspense>
       )}
-      {activeGame === "orbital-slingshot" && (
-        <Suspense fallback={<div className="gate-loading" role="status"><span />Loading orbital trajectory…</div>}>
-          <OrbitalSlingshotGate onExit={() => setActiveGame(null)} />
+      {activeGame === "synapse-pinball" && (
+        <Suspense fallback={<div className="gate-loading" role="status"><span />Loading optical mainframe…</div>}>
+          <SynapsePinballGate onExit={() => setActiveGame(null)} />
         </Suspense>
       )}
     </div>

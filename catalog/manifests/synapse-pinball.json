@@ -1,0 +1,22 @@
+{
+  "$schema": "../schema/game-manifest.schema.json",
+  "id": "synapse-pinball",
+  "version": "0.1.0",
+  "sdk": "0.1.0",
+  "status": "prototype",
+  "title": "Synapse Pinball",
+  "summary": "High-velocity 3D pinball inside a quantum optical mainframe. Chain laser prism bumpers, fiber-optic ramps, and superconducting bus loops.",
+  "engine": { "name": "Babylon.js", "version": "9.20.0", "rendering": "webgl-adaptive" },
+  "entry": "/src/games/synapse-pinball/SynapsePinballGate.tsx",
+  "presentation": { "orientation": "landscape", "aspectRatio": "16:9", "accent": "#00f0a8" },
+  "input": ["keyboard", "touch", "gamepad"],
+  "sessions": { "minimumSeconds": 30, "targetSeconds": 180, "maximumSeconds": 240 },
+  "assets": { "initialBytes": 1572864, "totalBytes": 16777216 },
+  "scores": { "mode": "higher-is-better", "ruleset": "pinball-v1", "validation": "local-deterministic-route" },
+  "achievements": [
+    { "id": "first-boot", "title": "Mainframe Online", "target": 1 },
+    { "id": "prism-cascade-x8", "title": "Optical Resonance", "target": 8 },
+    { "id": "quantum-overclock", "title": "Overclocked Bus", "target": 1 }
+  ],
+  "save": { "schemaVersion": 1, "maximumBytes": 65536 }
+}
