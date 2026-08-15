@@ -97,6 +97,24 @@ application code does.** Get agreement on the approach first.
 - Never claim the visual or performance target has been achieved without captured, device-tested
   evidence and a written review.
 
+### Owner preview gate
+
+- **No player-visible pull request may be merged until its exact PR-head build is available at
+  `https://4444555.xyz/test/` and the owner has reviewed that candidate.** Read and follow
+  `docs/OWNER_PREVIEW_GATE.md`.
+- Player-visible means anything that changes what a player can see, hear, control, or feel:
+  gameplay, scoring, controls, visuals, materials, lighting, effects, camera, HUD, portal UI,
+  audio, rendering/performance behaviour, or a new/promoted game.
+- Production `https://4444555.xyz/` must remain on accepted `main` while `/test/` serves the
+  candidate. A screenshot, CI artifact, local URL, or written description is not a substitute for
+  the live `/test/` preview.
+- The preview must identify the exact PR head SHA. If the PR head changes after owner approval,
+  that approval is invalid; redeploy `/test/` and obtain review again.
+- After CI is green and `/test/` is live, ask the owner for playtest feedback. If rejected, fix the
+  same task branch and redeploy. If accepted, the owner still gives explicit merge authorization.
+- Pure documentation, tests, CI-only work, and behaviour-preserving internal refactors do not need
+  a live preview unless the owner specifically requests one.
+
 ### Architecture
 
 - Games communicate through `@4444555/game-sdk`. They must not import Firebase, write leaderboards
@@ -137,6 +155,10 @@ Several tasks additionally require a **red-then-green proof**: deliberately brea
 gate protects, paste the failure output, then revert. A gate you have not watched fail is a gate
 you have not tested.
 
+For every player-visible PR, the review report must also include the live preview URL
+`https://4444555.xyz/test/` and the exact PR head SHA deployed there. Owner approval applies only
+to that SHA.
+
 ---
 
 ## Quick orientation
@@ -147,6 +169,7 @@ you have not tested.
 | Frozen owner decisions | `docs/PROJECT_STATE.md` |
 | Gravity Courier run contract | `docs/PRODUCTION_GAMEPLAY_BATCH_1.md` |
 | Why a visual decision was made | `docs/VISUAL_REVIEW.md` |
+| Owner preview before visible merge | `docs/OWNER_PREVIEW_GATE.md` |
 | Game integration contract | `docs/GAME_SDK.md` |
 | How to add a new game | `docs/CONTRIBUTING.md` |
 | How to upgrade a dependency | `docs/UPGRADING.md` *(after Roadmap Task 5.3)* |
