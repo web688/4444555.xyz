@@ -1,71 +1,48 @@
 # Repository rules — 4444555.xyz
 
-This file is the entry point for **every** agent working on this repository, regardless of which
-model or tool you are. It is not addressed to any one assistant. If you are reading this, it
-applies to you.
+This file applies to every agent or developer working on this repository.
 
-`CLAUDE.md` is a pointer to this file. There is one set of rules, and it lives here.
+`CLAUDE.md` points here. `docs/WORKFLOW.md` is the current execution workflow and overrides the older per-task bureaucracy in `docs/ROADMAP.md` Part A wherever they conflict. The roadmap still defines technical phases, dependencies, gates, and intended work.
 
 ---
 
-## Required resume protocol
+## Resume protocol
 
-1. **Read `docs/ROADMAP.md` in full before planning or changing anything.** It is the execution
-   contract: current phase, per-task file allowlists, the machine-checkable gate for every task,
-   and the thirteen non-negotiable rules in Part A. Work that skips it is rejected regardless of
-   quality.
-2. Read this file, then `docs/PROJECT_STATE.md`, then `README.md`, then the task-relevant
-   documents.
-3. Inspect the latest `main` commit plus recent merged and open pull requests and issues, then
-   reconcile any repository activity newer than the handoff.
-4. Treat settled owner decisions in `docs/PROJECT_STATE.md` as binding unless new owner feedback
-   explicitly changes them. Do not ask the owner to repeat settled history.
-5. Update `docs/PROJECT_STATE.md` whenever an accepted milestone materially changes the current
-   state, decisions, or next step.
-
-Repository history is authoritative when it is newer than any document.
+1. Read `AGENTS.md`, then `docs/WORKFLOW.md`, then the relevant phase in `docs/ROADMAP.md`.
+2. Read `docs/PROJECT_STATE.md`, `README.md`, and task-relevant technical documents.
+3. Inspect current `main` plus recent merged/open PRs before changing anything.
+4. Repository history is authoritative when newer than documentation.
+5. Do not ask the owner to repeat settled decisions.
 
 ---
 
-## How the owner wants to be worked with
+## How the owner wants to work
 
-The owner is Alex. These are working-style requirements, not preferences to weigh against other
-goals.
+The owner is Alex.
 
-### Deliver everything, every time
+### Keep it practical
 
-Never end a response with a withheld item. No "one more thing", no "I also noticed X — want me to
-fix it?", no "optionally I could…", no closing question about something that was obviously part
-of the job. If it follows logically from the request, **do it and report it as done.**
+This is a browser-arcade project, not a safety-critical system. Use enough process to protect accepted work, CI, and production, but do not turn implementation into approval bureaucracy.
 
-Asking permission for the self-evident wastes a round trip and reads as hedging. A response that
-ends by offering to do the next obvious step has not finished the work.
+- The owner approves **phases**, not every internal task, commit, or PR.
+- Once the owner says `proceed`, `go ahead`, or otherwise clearly approves a phase direction, complete that phase without asking for repeated implementation permission.
+- Do not stop after every batch to ask whether to continue.
+- Do not require a magic word such as `merge`. A clear positive verdict such as `OK`, `looks good`, `approved`, `go ahead`, or `merge` counts as phase approval.
+- Internal non-player-visible work inside an already approved phase may be merged after CI is green without another owner approval.
+- Player-visible work is reviewed once at the phase candidate stage through `https://4444555.xyz/test/`. A positive verdict on that candidate authorizes the phase merge.
 
-The only legitimate reasons to stop and ask are Roadmap rules 3 and 6:
+### Deliver everything
 
-- you need to touch a file outside the current task's allowlist, or
-- a gate has failed twice.
+Do the obvious next step without asking. Ask only when:
 
-Those are escalations. Everything else is hesitation, and hesitation is not wanted.
+- the requested phase direction is genuinely ambiguous,
+- an external owner-only action is required,
+- completing the phase would materially change an accepted design decision that was not part of the approved direction,
+- or a technical blocker prevents a reliable result.
 
-### Be concise and direct
+### Be concise and honest
 
-Short explanations. Cut every word that carries no information. If you can delete a sentence and
-the meaning survives, delete it.
-
-### Answer the question that was asked, honestly, first
-
-If a plan has a gap, say "no, that's missing" plainly. Do not reframe a gap as a deliberate
-scoping decision. Do not bury a negative answer under context. Lead with the answer, then
-explain.
-
-Never claim something is done, tested, or verified when it is not. "It should work" is not
-"it works". If you have not run it, say you have not run it.
-
-### Ask before writing code
-
-Planning, reading, research, analysis, and documentation need no permission. **Changing
-application code does.** Get agreement on the approach first.
+Short explanations. Never claim something is done, tested, deployed, or verified when it is not.
 
 ---
 
@@ -73,91 +50,67 @@ application code does.** Get agreement on the approach first.
 
 ### Visual design
 
-- **Do not change the portal's visual design.** `apps/portal/src/styles.css`, the hero, the orbit
-  stage, the card grid, the type scale, the colour palette, and the site copy are accepted owner
-  work. They appear in no task allowlist in Roadmap Phases 0–5.
-- The design is protected by a visual-regression baseline (Roadmap Task 2.5). A style change is a
-  deliberate, owner-approved act with regenerated baselines in a PR titled `design:` — never a
-  side effect of other work.
-- Do not reopen the frozen visual and gameplay decisions in `docs/PROJECT_STATE.md` — the
-  procedural deep-space backdrop, direct controls with no recentring drift, matte-white PBR-unlit
-  hazards with orange accents, restrained foreground particles, and the crisp no-fog/no-bloom
-  render — without a specific new playtest finding or an explicit owner request.
+- Do not redesign the portal unless the owner explicitly asks.
+- Preserve accepted Gravity Courier visual/control decisions unless new owner feedback changes them.
+- New games must belong to the same premium design family without copying Gravity Courier's mechanics, geometry, or exact palette.
+- Avoid crude browser-game presentation, excessive neon/bloom/fog/haze/chromatic aberration, noisy particles, giant HUDs, or accidental mobile visual degradation.
 
 ### Testing
 
-- **Every game ships tested on desktop and mobile.** Six Playwright device projects: Chromium,
-  Firefox and WebKit on desktop; iPhone, Pixel, and Pixel-portrait on mobile. No exceptions, no
-  "desktop looks fine", no trimming the matrix to make CI faster.
-- Mobile regressions must be caught by CI, not by the owner on his phone. Every expensive bug in
-  this project's history was a mobile bug found by hand after release.
-- A title cannot be marked `playable: true` in `catalog.ts` until the shared `runGameSuite`
-  passes for it on all six device projects.
-- A game manifest and validation tests are required for every new title.
-- Never claim the visual or performance target has been achieved without captured, device-tested
-  evidence and a written review.
+- CI must be green before merging.
+- Never disable or weaken a failing check just to get green.
+- Every playable game must ultimately pass the shared desktop/mobile test matrix defined by the roadmap.
+- Mobile controls and performance are first-class requirements.
+- Use automated tests and gates as engineering tools, not as reasons to ask the owner for repeated approvals.
 
 ### Owner preview gate
 
-- **No player-visible pull request may be merged until its exact PR-head build is available at
-  `https://4444555.xyz/test/` and the owner has reviewed that candidate.** Read and follow
-  `docs/OWNER_PREVIEW_GATE.md`.
-- Player-visible means anything that changes what a player can see, hear, control, or feel:
-  gameplay, scoring, controls, visuals, materials, lighting, effects, camera, HUD, portal UI,
-  audio, rendering/performance behaviour, or a new/promoted game.
-- Production `https://4444555.xyz/` must remain on accepted `main` while `/test/` serves the
-  candidate. A screenshot, CI artifact, local URL, or written description is not a substitute for
-  the live `/test/` preview.
-- The preview must identify the exact PR head SHA. If the PR head changes after owner approval,
-  that approval is invalid; redeploy `/test/` and obtain review again.
-- After CI is green and `/test/` is live, ask the owner for playtest feedback. If rejected, fix the
-  same task branch and redeploy. If accepted, the owner still gives explicit merge authorization.
-- Pure documentation, tests, CI-only work, and behaviour-preserving internal refactors do not need
-  a live preview unless the owner specifically requests one.
+For player-visible phase work, follow `docs/OWNER_PREVIEW_GATE.md`.
+
+- Production `/` remains the accepted `main` build while review happens.
+- `/test/` serves the exact candidate SHA.
+- The owner tests the candidate there and gives one verdict for the phase.
+- If rejected, fix the same phase branch and redeploy `/test/`; do not create a new approval ceremony for each internal fix.
+- A positive verdict on the current candidate is merge authorization. No separate `merge` wording is required.
+
+Pure documentation, tests, CI-only changes, and behaviour-preserving internal refactors do not need owner preview.
 
 ### Architecture
 
-- Games communicate through `@4444555/game-sdk`. They must not import Firebase, write leaderboards
-  directly, or reach `localStorage`, `sessionStorage`, `indexedDB`, `document.cookie`, or `fetch`.
-  *(Enforced by `npm run check:boundary` from Roadmap Task 3.3. Until that task ships this rule is
-  aspirational — Gravity Courier does not yet conform. Do not cite it as if it were already true.)*
-- Keep the portal usable without authentication, and progressively load games and heavy assets.
-- Preserve keyboard, touch, gamepad, reduced-motion, and muted-audio paths in everything.
-- Do not ship fake accounts, scores, or rankings. Local progress is anonymous and device-only and
-  must never be presented as a leaderboard.
+- Games should use `@4444555/game-sdk` boundaries as the hardening roadmap introduces them.
+- Keep the portal usable without authentication and lazy-load heavy game code/assets.
+- Preserve keyboard, touch, gamepad, reduced-motion, and muted-audio paths where applicable.
+- Do not ship fake accounts, scores, or rankings.
 
 ### Security
 
-- Never print, echo, log, copy, or commit the contents of `GIT_Token.txt` or
-  `all connection info.txt`. Not into a file, a commit message, a PR body, a test fixture, or a
-  chat message.
-- Never commit credentials, tokens, or archives.
+- Never print, copy, log, or commit credentials or token files.
+- Never commit secrets or private archives.
 
 ### Git
 
-- One task per branch, one task per pull request. Never combine two task IDs.
-- Never rewrite history on `main`: no `push --force`, no rebase of pushed commits, no
-  `reset --hard` on a shared branch, no amending a pushed commit.
-- Run `npm run verify` before opening a pull request. Merge only after CI passes.
-- Never disable, skip, or weaken a failing check to get green. Not with `|| true`, not with
-  `continue-on-error`, not with `.skip`, not with `@ts-ignore`. A failing gate means the code is
-  wrong.
+- Never develop directly on `main`.
+- Use one branch/PR per **phase or coherent game milestone**, not one PR for every tiny internal task.
+- Multiple commits and roadmap tasks may live in the same phase branch when they belong to the same approved outcome.
+- Keep unrelated work out of the phase.
+- Never rewrite shared `main` history.
+- Merge only with green CI.
+- Internal non-visible PRs within an approved phase may be merged by the agent without stopping for owner approval.
+- The final player-visible phase candidate waits for `/test/` review and one owner verdict.
 
 ---
 
 ## Pull request requirements
 
-Every PR body must use the self-report template in `docs/ROADMAP.md` Part A.3. A PR without it is
-rejected unread. It requires you to paste literal terminal output, list every changed file against
-the task's allowlist, and disclose any rule you were tempted to break.
+PR bodies should be short and useful. Include only:
 
-Several tasks additionally require a **red-then-green proof**: deliberately break the thing the
-gate protects, paste the failure output, then revert. A gate you have not watched fail is a gate
-you have not tested.
+- phase/scope,
+- important files or systems changed,
+- verification/CI result,
+- preview URL + exact SHA when player-visible,
+- material risks or known limitations.
 
-For every player-visible PR, the review report must also include the live preview URL
-`https://4444555.xyz/test/` and the exact PR head SHA deployed there. Owner approval applies only
-to that SHA.
+Do **not** require giant self-report templates, literal terminal transcripts, repeated allowlist declarations, or "rules I was tempted to break" sections unless a specific debugging/audit task genuinely needs them.
 
 ---
 
@@ -165,12 +118,10 @@ to that SHA.
 
 | Thing | Where |
 | --- | --- |
-| What to do next | `docs/ROADMAP.md` — current phase, next task |
-| Frozen owner decisions | `docs/PROJECT_STATE.md` |
-| Gravity Courier run contract | `docs/PRODUCTION_GAMEPLAY_BATCH_1.md` |
-| Why a visual decision was made | `docs/VISUAL_REVIEW.md` |
-| Owner preview before visible merge | `docs/OWNER_PREVIEW_GATE.md` |
+| Current working method | `docs/WORKFLOW.md` |
+| Technical phase plan | `docs/ROADMAP.md` |
+| Frozen/accepted decisions | `docs/PROJECT_STATE.md` |
+| Owner preview | `docs/OWNER_PREVIEW_GATE.md` |
 | Game integration contract | `docs/GAME_SDK.md` |
-| How to add a new game | `docs/CONTRIBUTING.md` |
-| How to upgrade a dependency | `docs/UPGRADING.md` *(after Roadmap Task 5.3)* |
-| Deploy and rollback | `docs/DEPLOYMENT.md` |
+| Add a game | `docs/CONTRIBUTING.md` |
+| Deploy/rollback | `docs/DEPLOYMENT.md` |
