@@ -1,0 +1,79 @@
+name: Deploy Phase Preview
+
+on:
+  workflow_run:
+    workflows: ["Verify"]
+    types: [completed]
+    branches:
+      - "phase/**"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy-preview:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    environment:
+      name: github-pages
+      url: https://4444555.xyz/test/
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout accepted main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: production
+
+      - name: Checkout verified candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          path: candidate
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build accepted production
+        working-directory: production
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build candidate for /test/
+        working-directory: candidate
+        run: |
+          npm ci
+          npm run build --workspace @4444555/portal -- --base=/test/
+
+      - name: Assemble production plus preview
+        env:
+          PREVIEW_SHA: ${{ github.event.workflow_run.head_sha }}
+          PREVIEW_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          rm -rf site
+          mkdir -p site/test
+          cp -a production/apps/portal/dist/. site/
+          cp -a candidate/apps/portal/dist/. site/test/
+          rm -f site/test/CNAME
+          printf '{"sha":"%s","branch":"%s"}\n' "$PREVIEW_SHA" "$PREVIEW_BRANCH" > site/test/preview.json
+          test -f site/index.html
+          test -f site/CNAME
+          test -f site/.nojekyll
+          test -f site/test/index.html
+          test -f site/test/preview.json
+          grep -q 'src="/assets/index-' site/index.html
+          grep -q 'src="/test/assets/index-' site/test/index.html
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
