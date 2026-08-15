@@ -6,8 +6,12 @@ Production is immutable per commit. A rollback is a revert of the offending comm
 
 ## Live path as of 2026-08-15
 
-GitHub Pages is currently configured with `build_type: legacy` and source `main:/` (repository root). The production mechanism is therefore the branch-root Pages path, not the artifact uploaded by `.github/workflows/pages.yml`.
+GitHub Pages is configured with `build_type: workflow`. Production is therefore served from the artifact produced by `.github/workflows/pages.yml`, which builds `apps/portal/dist` and deploys that directory through the GitHub Pages Actions workflow.
 
-The root `index.html` on current `main` references `/assets/arcade-loader.js?v=0.15.0` and `/assets/arcade.css?v=0.15.0`, so the branch-root fallback bundle is the content selected by the configured Pages source. The separate `Deploy Pages` workflow also exists and its latest run for `de264e4b814df1b97d9fdd0cd5f160d6f7748946` completed successfully on 2026-08-15, but while Pages remains configured for the legacy `main:/` source that Actions artifact is not the authoritative production path.
+`apps/portal/public/CNAME` contains `4444555.xyz` and `apps/portal/public/.nojekyll` exists, so both files are copied into the Vite output. The deployment workflow asserts that `dist/index.html`, `dist/CNAME`, and `dist/.nojekyll` are present and that `dist/index.html` references the Vite-generated `/assets/index-*.js` entry before the artifact can be uploaded.
 
-Task 1.2 must switch the repository Pages source to GitHub Actions before the legacy root fallback can be retired. Until that switch is confirmed, `index.html`, `assets/arcade-loader.js`, and the split fallback assets remain production-critical.
+The legacy root `index.html`, `assets/arcade-loader.js`, and split `assets/*.b64` fallback remain in the repository during Task 1.2. They are not to be deleted until the Actions-built production path is proven live and the Task 1.2 live/manual gates pass; their removal is Task 1.3.
+
+## Owner preview gate
+
+Player-visible pull requests require the exact PR-head candidate to be playable at `https://4444555.xyz/test/` before owner approval, as defined in `docs/OWNER_PREVIEW_GATE.md`. Production at `/` must continue to represent accepted `main`. The preview deployment mechanism is a separate roadmap concern and must not be improvised inside an unrelated task.
