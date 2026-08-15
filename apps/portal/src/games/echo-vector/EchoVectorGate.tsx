@@ -16,8 +16,12 @@ const initialTelemetry: EchoTelemetry = {
   chain: 0,
   echoes: 0,
   phaseReady: true,
-  cue: "LISTEN FOR THE NEXT WAKE",
-  callout: "BUILD A ROUTE YOUR FUTURE SELF CAN USE",
+  cue: "MOVE · FOLLOW THE MARKED NODE",
+  callout: "YOUR ROUTE WILL RETURN AS AN ECHO",
+  instructionTitle: "THREE THINGS ONLY",
+  instructionBody: "Move to the marked node. Phase when it turns bright blue. After 30 seconds, everything you did returns as a ghost.",
+  playerTarget: 0,
+  echoTarget: 0,
   nodeActivations: 0,
   echoAssists: 0,
   confluences: 0,
@@ -37,6 +41,8 @@ export default function EchoVectorGate({ onExit }: Props) {
   const [muted, setMuted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stick, setStick] = useState({ x: 0, y: 0 });
+  const [echoLessonSeen, setEchoLessonSeen] = useState(false);
+  const [echoLessonOpen, setEchoLessonOpen] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -73,6 +79,13 @@ export default function EchoVectorGate({ onExit }: Props) {
       document.body.style.overflow = previousOverflow;
     };
   }, [onExit]);
+
+  useEffect(() => {
+    if (telemetry.phase !== "running" || telemetry.cycle !== 2 || echoLessonSeen) return;
+    setEchoLessonSeen(true);
+    setEchoLessonOpen(true);
+    runtimeRef.current?.pause();
+  }, [telemetry.phase, telemetry.cycle, echoLessonSeen]);
 
   const togglePause = () => {
     if (telemetry.phase === "paused") runtimeRef.current?.resume();
@@ -124,7 +137,7 @@ export default function EchoVectorGate({ onExit }: Props) {
           <small>{telemetry.chain > 1 ? `CHAIN ×${telemetry.chain}` : "SEQUENCE OPEN"}</small>
         </div>
         <div className="echo-session-actions">
-          <button onClick={togglePause} disabled={!runtimeReady || telemetry.phase === "ready" || telemetry.phase === "complete" || telemetry.phase === "failed"}>
+          <button onClick={togglePause} disabled={!runtimeReady || telemetry.phase === "ready" || telemetry.phase === "complete" || telemetry.phase === "failed" || echoLessonOpen}>
             {telemetry.phase === "paused" ? "Resume" : "Pause"}
           </button>
           <button onClick={toggleMute}>{muted ? "Sound on" : "Mute"}</button>
@@ -139,6 +152,20 @@ export default function EchoVectorGate({ onExit }: Props) {
 
       <div className={`echo-callout ${telemetry.callout ? "visible" : ""}`}>{telemetry.callout}</div>
 
+      {telemetry.phase === "running" && !echoLessonOpen && (
+        <aside className="echo-instruction" aria-live="polite">
+          <strong>{telemetry.instructionTitle}</strong>
+          <span>{telemetry.instructionBody}</span>
+          <small>
+            <b>WHITE</b> = YOU
+            <i>·</i>
+            <b>GHOST</b> = OLD YOU
+            <i>·</i>
+            <b>BRIGHT BLUE</b> = PHASE
+          </small>
+        </aside>
+      )}
+
       <footer className="echo-sequence">
         <div className="echo-cycle-dots" aria-label={`Cycle ${telemetry.cycle} of ${telemetry.totalCycles}`}>
           {Array.from({ length: telemetry.totalCycles }, (_, index) => {
@@ -146,8 +173,8 @@ export default function EchoVectorGate({ onExit }: Props) {
             return <i key={cycle} className={cycle < telemetry.cycle ? "recorded" : cycle === telemetry.cycle ? "current" : ""} />;
           })}
         </div>
-        <div className="echo-cue"><span>TEMPORAL SEQUENCE</span><strong>{telemetry.cue}</strong></div>
-        <div className="echo-echo-count"><span>ACTIVE ECHOES</span><strong>{telemetry.echoes}</strong></div>
+        <div className="echo-cue"><span>WHAT TO DO NOW</span><strong>{telemetry.cue}</strong></div>
+        <div className="echo-echo-count"><span>OLD ROUTES REPLAYING</span><strong>{telemetry.echoes}</strong></div>
       </footer>
 
       <div className="echo-touch-controls" aria-label="Echo Vector touch controls">
@@ -170,25 +197,47 @@ export default function EchoVectorGate({ onExit }: Props) {
           }}
         >
           <span>{phaseLabel}</span>
-          <small>TAP ON CUE</small>
+          <small>WHEN NODE IS BLUE</small>
         </button>
       </div>
 
       {telemetry.phase === "ready" && (
         <section className="echo-state echo-ready">
-          <p>30 SECOND TEMPORAL CYCLE</p>
+          <p>THE WHOLE GAME IN 20 SECONDS</p>
           <h2>Echo Vector</h2>
+          <div className="echo-simple-rule">Make a route now that becomes useful 30 seconds later.</div>
           <div className="echo-briefing">
-            <span><b>MOVE</b>Author a clean route through waking resonance nodes.</span>
-            <span><b>PHASE</b>Tap Space, click, A/RT, or the Phase control near a ready node.</span>
-            <span><b>REMEMBER</b>Every completed cycle returns next cycle as an exact echo. Build choreography, not chaos.</span>
+            <span><b>1 · MOVE</b>Follow the marked line to the marked node.</span>
+            <span><b>2 · PHASE</b>Stay inside its ring. When it turns bright blue, press Space.</span>
+            <span><b>3 · USE YOUR ECHO</b>After 30 seconds, your entire route replays as a translucent ghost. Let it repeat old jobs while you take new ones.</span>
           </div>
-          <button disabled={!runtimeReady} onClick={() => runtimeRef.current?.launch()}>Begin Cycle One</button>
+          <button disabled={!runtimeReady} onClick={() => runtimeRef.current?.launch()}>Teach Me While I Play</button>
           <button className="secondary" onClick={onExit}>Return to Portal</button>
         </section>
       )}
 
-      {telemetry.phase === "paused" && (
+      {echoLessonOpen && (
+        <section className="echo-state echo-echo-lesson">
+          <p>CYCLE 2 · THIS IS THE CORE MECHANIC</p>
+          <h2>Your old self is now playing too.</h2>
+          <div className="echo-lesson-diagram" aria-hidden="true">
+            <span className="echo-lesson-you">YOU</span>
+            <i>+</i>
+            <span className="echo-lesson-ghost">GHOST</span>
+            <i>=</i>
+            <strong>TWO JOBS AT ONCE</strong>
+          </div>
+          <div className="echo-lesson-copy">
+            The translucent shard is an exact replay of your first 30 seconds. You cannot steer it. If it returns to an old node, leave that job to the ghost and move your current shard to the new marked node. When both activate together, the score jumps.
+          </div>
+          <button onClick={() => {
+            setEchoLessonOpen(false);
+            runtimeRef.current?.resume();
+          }}>Continue Cycle Two</button>
+        </section>
+      )}
+
+      {telemetry.phase === "paused" && !echoLessonOpen && (
         <section className="echo-state echo-paused">
           <p>SIMULATION HELD</p>
           <h2>Temporal Pause</h2>
