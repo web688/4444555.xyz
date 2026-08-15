@@ -11,6 +11,7 @@ import {
   getSecondsRemaining,
   launchEchoSimulation,
   stepEchoSimulation,
+  type EchoNode,
   type EchoSimulation,
   type SimulationEvent,
 } from "./rules.ts";
@@ -30,6 +31,10 @@ export type EchoTelemetry = {
   phaseReady: boolean;
   cue: string;
   callout: string;
+  instructionTitle: string;
+  instructionBody: string;
+  playerTarget: number;
+  echoTarget: number;
   nodeActivations: number;
   echoAssists: number;
   confluences: number;
@@ -54,48 +59,173 @@ export type EchoVectorRuntime = {
 };
 
 const STEP_MS = 1000 / 60;
+const IN_POSITION_RADIUS = 48;
 
 function calloutForEvents(events: readonly SimulationEvent[], cycle: number): string | null {
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
     if (!event) continue;
     if (event.type === "confluence") {
-      if (event.actorCount >= 4) return "CHORUS CONFLUENCE";
-      if (event.actorCount === 3) return "TRIO CONFLUENCE";
-      return "DUET CONFLUENCE";
+      if (event.actorCount >= 4) return "CHORUS · FOUR PATHS ALIGNED";
+      if (event.actorCount === 3) return "TRIO · THREE PATHS ALIGNED";
+      return "DUET · TWO PATHS ALIGNED";
     }
-    if (event.type === "node") return event.echoOnly ? "ECHO ASSIST" : "RESONANCE LOCK";
-    if (event.type === "collision") return "COHERENCE FRACTURE";
-    if (event.type === "cycle") return `ECHO ${Math.max(1, cycle - 1)} COMMITTED`;
-    if (event.type === "complete") return "SEQUENCE RESOLVED";
-    if (event.type === "failed") return "TEMPORAL INTEGRITY LOST";
+    if (event.type === "node") return event.echoOnly ? "YOUR ECHO ACTIVATED A NODE" : "NODE ACTIVATED";
+    if (event.type === "collision") return "UNCONTROLLED CROSSING · COHERENCE LOST";
+    if (event.type === "cycle") return `CYCLE ${cycle} · YOUR PREVIOUS ROUTE IS NOW AN ECHO`;
+    if (event.type === "complete") return "SIX-CYCLE SEQUENCE COMPLETE";
+    if (event.type === "failed") return "COHERENCE LOST";
   }
   return null;
 }
 
-function cueLabel(state: EchoSimulation): string {
-  const ready: number[] = [];
-  const selected: number[] = [];
-  let primary = 0;
+type TargetSet = {
+  primary?: EchoNode;
+  player?: EchoNode;
+  primaryReady: boolean;
+  playerReady: boolean;
+};
+
+function targetsFor(state: EchoSimulation): TargetSet {
+  let primary: EchoNode | undefined;
+  let alternative: EchoNode | undefined;
+  let primaryReady = false;
+  let alternativeReady = false;
 
   for (const node of state.nodes) {
     const cue = getNodeCue(state, node.id);
-    if (cue.intensity > 0) {
-      selected.push(node.id + 1);
-      if (cue.primary) primary = node.id + 1;
+    if (cue.intensity <= 0) continue;
+    if (cue.primary) {
+      primary = node;
+      primaryReady = cue.ready;
+    } else if (!alternative) {
+      alternative = node;
+      alternativeReady = cue.ready;
     }
-    if (cue.ready) ready.push(node.id + 1);
   }
 
-  if (ready.length === 1) return `PHASE · NODE ${ready[0]}`;
-  if (ready.length > 1) return `PHASE · NODES ${ready.join(" · ")}`;
-  if (primary > 0) return `TRACK NODE ${primary} · WAIT FOR WAKE`;
-  if (selected.length > 0) return `TRACK NODES ${selected.join(" · ")}`;
-  return "NEXT WAKE ACQUIRING";
+  const player = state.cycle >= 2 && alternative ? alternative : primary;
+  return {
+    ...(primary ? { primary } : {}),
+    ...(player ? { player } : {}),
+    primaryReady,
+    playerReady: player === alternative ? alternativeReady : primaryReady,
+  };
+}
+
+function isNear(state: EchoSimulation, node: EchoNode | undefined): boolean {
+  if (!node) return false;
+  const dx = state.player.x - node.x;
+  const dy = state.player.y - node.y;
+  return dx * dx + dy * dy <= IN_POSITION_RADIUS * IN_POSITION_RADIUS;
+}
+
+function lessonFor(state: EchoSimulation): {
+  title: string;
+  body: string;
+  playerTarget: number;
+  echoTarget: number;
+} {
+  const targets = targetsFor(state);
+  const playerTarget = targets.player ? targets.player.id + 1 : 0;
+  const echoTarget = state.cycle >= 2 && targets.primary && targets.player !== targets.primary ? targets.primary.id + 1 : 0;
+  const near = isNear(state, targets.player);
+
+  if (state.phase === "ready") {
+    return {
+      title: "THREE THINGS ONLY",
+      body: "Move to the marked node. Phase when it turns bright blue. After 30 seconds, everything you did returns as a ghost.",
+      playerTarget,
+      echoTarget,
+    };
+  }
+
+  if (state.cycle === 1) {
+    if (near && targets.playerReady) {
+      return {
+        title: "3 · PHASE NOW",
+        body: `Press Space while you are inside Node ${playerTarget}. This exact action will be replayed by your echo next cycle.`,
+        playerTarget,
+        echoTarget: 0,
+      };
+    }
+    if (near) {
+      return {
+        title: "2 · WAIT INSIDE THE RING",
+        body: `You are in position at Node ${playerTarget}. When it turns bright blue, press Space.`,
+        playerTarget,
+        echoTarget: 0,
+      };
+    }
+    return {
+      title: "1 · FOLLOW THE MARKED NODE",
+      body: `Move to Node ${playerTarget}. The game is recording your entire 30-second route as you play.`,
+      playerTarget,
+      echoTarget: 0,
+    };
+  }
+
+  if (state.cycle === 2 && state.tickInCycle < 240) {
+    return {
+      title: "WATCH THE TRANSLUCENT SHARD",
+      body: "That ghost is Cycle 1 replaying exactly. You do not control it. It repeats every move and every Phase you made.",
+      playerTarget,
+      echoTarget,
+    };
+  }
+
+  if (echoTarget > 0 && playerTarget > 0) {
+    if (near && targets.playerReady) {
+      return {
+        title: "PHASE YOUR NODE NOW",
+        body: `You are on Node ${playerTarget}. Press Space. Your echo is repeating its old job at Node ${echoTarget}.`,
+        playerTarget,
+        echoTarget,
+      };
+    }
+    if (near) {
+      return {
+        title: `YOU → ${playerTarget}   ·   ECHO → ${echoTarget}`,
+        body: `Hold Node ${playerTarget} until it turns bright blue. Let the ghost handle Node ${echoTarget}.`,
+        playerTarget,
+        echoTarget,
+      };
+    }
+    return {
+      title: `SPLIT THE WORK · YOU → ${playerTarget}   ·   ECHO → ${echoTarget}`,
+      body: `Go to Node ${playerTarget}. Your recorded echo is already travelling the old route toward Node ${echoTarget}.`,
+      playerTarget,
+      echoTarget,
+    };
+  }
+
+  return {
+    title: state.cycle >= 3 ? "BUILD ON YOUR OLD ROUTES" : "FOLLOW THE NEXT NODE",
+    body: state.cycle >= 3
+      ? "Every translucent shard is an older cycle replaying automatically. Use them for old jobs while you position the current shard for new ones."
+      : `Move to Node ${playerTarget} and Phase when it wakes.`,
+    playerTarget,
+    echoTarget,
+  };
+}
+
+function cueLabel(state: EchoSimulation): string {
+  const lesson = lessonFor(state);
+  const targets = targetsFor(state);
+  if (lesson.echoTarget > 0 && lesson.playerTarget > 0) {
+    return targets.playerReady
+      ? `PHASE · YOU ${lesson.playerTarget} · ECHO ${lesson.echoTarget}`
+      : `YOU ${lesson.playerTarget} · ECHO ${lesson.echoTarget}`;
+  }
+  if (lesson.playerTarget > 0) {
+    return targets.playerReady ? `PHASE · NODE ${lesson.playerTarget}` : `MOVE · NODE ${lesson.playerTarget}`;
+  }
+  return "NEXT NODE ACQUIRING";
 }
 
 function telemetryFrom(state: EchoSimulation, paused: boolean, callout: string): EchoTelemetry {
   const phase: EchoRuntimePhase = paused && state.phase === "running" ? "paused" : state.phase;
+  const lesson = lessonFor(state);
   return {
     phase,
     cycle: state.cycle,
@@ -109,6 +239,10 @@ function telemetryFrom(state: EchoSimulation, paused: boolean, callout: string):
     phaseReady: state.player.phaseCooldown <= 0,
     cue: cueLabel(state),
     callout,
+    instructionTitle: lesson.title,
+    instructionBody: lesson.body,
+    playerTarget: lesson.playerTarget,
+    echoTarget: lesson.echoTarget,
     nodeActivations: state.stats.nodeActivations,
     echoAssists: state.stats.echoAssists,
     confluences: state.stats.confluences,
@@ -137,7 +271,7 @@ export async function createEchoVectorGame(
   let accumulator = 0;
   let lastFrameTime = performance.now();
   let lastTelemetryTime = 0;
-  let callout = "BUILD A ROUTE YOUR FUTURE SELF CAN USE";
+  let callout = "YOUR ROUTE WILL RETURN AS AN ECHO";
   let calloutTicks = 180;
   let lastBeatTick = -1;
 
@@ -212,7 +346,7 @@ export async function createEchoVectorGame(
       if (state.phase !== "ready") return;
       launchEchoSimulation(state);
       void audio.resume();
-      callout = "CYCLE 1 · AUTHOR THE FIRST ECHO";
+      callout = "CYCLE 1 · FOLLOW THE MARKED NODE";
       calloutTicks = 150;
       paused = false;
       lastFrameTime = performance.now();
@@ -236,7 +370,7 @@ export async function createEchoVectorGame(
       paused = false;
       autoPaused = false;
       accumulator = 0;
-      callout = "BUILD A ROUTE YOUR FUTURE SELF CAN USE";
+      callout = "YOUR ROUTE WILL RETURN AS AN ECHO";
       calloutTicks = 180;
       lastBeatTick = -1;
       renderer.render(state);
