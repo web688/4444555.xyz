@@ -1,0 +1,511 @@
+.hullwatch-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  overflow: hidden;
+  background: #020305;
+  color: #ece9e2;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.hullwatch-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  outline: 0;
+  cursor: none;
+  touch-action: none;
+}
+
+.hullwatch-scanline {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.018), transparent 20%, transparent 80%, rgb(0 0 0 / 0.18)),
+    radial-gradient(circle at 50% 44%, transparent 0, transparent 42%, rgb(0 0 0 / 0.28) 100%);
+}
+
+.hullwatch-topbar {
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  min-height: 96px;
+  padding: 22px 28px;
+  display: grid;
+  grid-template-columns: minmax(210px, 1fr) auto minmax(210px, 1fr);
+  align-items: start;
+  gap: 24px;
+  background: linear-gradient(180deg, rgb(2 3 5 / 0.86), rgb(2 3 5 / 0.42) 68%, transparent);
+}
+
+.hullwatch-score,
+.hullwatch-hull,
+.hullwatch-mission {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.hullwatch-score > span,
+.hullwatch-hull > span,
+.hullwatch-mission > span,
+.hullwatch-weapon span,
+.hullwatch-threats span {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 10px;
+  letter-spacing: .18em;
+  color: rgb(226 232 234 / 0.54);
+}
+
+.hullwatch-score strong {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: clamp(25px, 2.4vw, 38px);
+  font-weight: 450;
+  letter-spacing: .04em;
+}
+
+.hullwatch-score small {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 9px;
+  letter-spacing: .12em;
+  color: #a9c2c7;
+}
+
+.hullwatch-mission {
+  align-items: center;
+  min-width: 160px;
+}
+
+.hullwatch-mission strong {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  letter-spacing: .12em;
+  font-weight: 600;
+  color: #d7dfe1;
+}
+
+.hullwatch-mission b {
+  margin-top: 1px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 25px;
+  font-weight: 450;
+  letter-spacing: .06em;
+}
+
+.hullwatch-mission i {
+  margin-left: 2px;
+  font-size: 10px;
+  font-style: normal;
+  color: rgb(226 232 234 / 0.45);
+}
+
+.hullwatch-hull {
+  align-items: flex-end;
+}
+
+.hullwatch-hull strong {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 25px;
+  font-weight: 450;
+}
+
+.hullwatch-hull > div {
+  width: min(220px, 22vw);
+  height: 3px;
+  margin-top: 4px;
+  background: rgb(255 255 255 / 0.12);
+}
+
+.hullwatch-hull > div b {
+  display: block;
+  height: 100%;
+  background: #b6c9cc;
+  transition: width .18s ease, background-color .2s ease;
+}
+
+.hullwatch-gate.warn .hullwatch-hull > div b,
+.hullwatch-gate.warn .hullwatch-hull strong { color: #d3a37f; background-color: #b17d5e; }
+.hullwatch-gate.critical .hullwatch-hull > div b,
+.hullwatch-gate.critical .hullwatch-hull strong { color: #df826f; background-color: #b45d4f; }
+
+.hullwatch-actions {
+  position: absolute;
+  top: 24px;
+  right: 50%;
+  transform: translateX(50%);
+  display: flex;
+  gap: 8px;
+  z-index: 3;
+}
+
+.hullwatch-actions button {
+  min-width: 58px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid rgb(230 235 235 / 0.14);
+  border-radius: 999px;
+  background: rgb(4 7 9 / 0.64);
+  color: rgb(235 239 239 / 0.64);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 9px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  backdrop-filter: blur(5px);
+}
+
+.hullwatch-actions button:hover:not(:disabled) { border-color: rgb(230 235 235 / 0.38); color: #fff; }
+.hullwatch-actions button:disabled { opacity: .3; }
+.hullwatch-actions .close { min-width: 30px; width: 30px; padding: 0; font-size: 15px; }
+
+.hullwatch-reticle {
+  pointer-events: none;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 86px;
+  height: 86px;
+  transform: translate(-50%, -50%);
+  color: rgb(216 226 228 / 0.72);
+  transition: color .08s linear, transform .08s linear;
+}
+
+.hullwatch-reticle i {
+  position: absolute;
+  width: 19px;
+  height: 19px;
+  border-color: currentColor;
+  border-style: solid;
+  opacity: .82;
+}
+
+.hullwatch-reticle .tl { left: 0; top: 0; border-width: 1px 0 0 1px; }
+.hullwatch-reticle .tr { right: 0; top: 0; border-width: 1px 1px 0 0; }
+.hullwatch-reticle .bl { left: 0; bottom: 0; border-width: 0 0 1px 1px; }
+.hullwatch-reticle .br { right: 0; bottom: 0; border-width: 0 1px 1px 0; }
+
+.hullwatch-reticle b {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.hullwatch-reticle span {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 9px);
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 9px;
+  letter-spacing: .16em;
+}
+
+.hullwatch-reticle.locked {
+  color: #d7e6e7;
+  transform: translate(-50%, -50%) scale(.88);
+}
+
+.hullwatch-reticle.locked i { box-shadow: 0 0 8px rgb(182 216 220 / 0.12); }
+.hullwatch-reticle.locked span { color: #c8dfe2; }
+.hullwatch-reticle.disabled { color: #a96556; }
+
+.hullwatch-callout {
+  pointer-events: none;
+  position: absolute;
+  top: 15%;
+  left: 50%;
+  min-width: 180px;
+  padding: 7px 14px;
+  transform: translate(-50%, -8px);
+  border: 1px solid rgb(211 222 223 / 0.16);
+  background: rgb(3 5 7 / 0.58);
+  color: transparent;
+  opacity: 0;
+  text-align: center;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .16em;
+  transition: opacity .15s ease, transform .15s ease, color .15s ease;
+  backdrop-filter: blur(4px);
+}
+
+.hullwatch-callout.visible {
+  transform: translate(-50%, 0);
+  color: #dce7e8;
+  opacity: 1;
+}
+
+.hullwatch-weapon,
+.hullwatch-threats {
+  position: absolute;
+  bottom: 24px;
+  min-width: 250px;
+  padding: 13px 15px 12px;
+  border-top: 1px solid rgb(229 235 235 / 0.16);
+  background: linear-gradient(180deg, rgb(5 8 10 / 0.28), rgb(5 8 10 / 0.72));
+  backdrop-filter: blur(5px);
+}
+
+.hullwatch-weapon { left: 28px; }
+.hullwatch-threats { right: 28px; min-width: 170px; text-align: right; }
+
+.weapon-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.weapon-title strong {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  color: #bdd1d4;
+  letter-spacing: .08em;
+}
+
+.heat-track {
+  height: 5px;
+  margin: 9px 0 7px;
+  background: rgb(255 255 255 / 0.1);
+}
+
+.heat-track b {
+  display: block;
+  height: 100%;
+  background: #b9c7c7;
+  transition: width .08s linear, background .15s ease;
+}
+
+.hullwatch-gate .weapon-title strong:has(+ *) { color: #bdd1d4; }
+.hullwatch-weapon:has(.heat-track b[style*="100%"]) .heat-track b { background: #b96353; }
+
+.weapon-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.weapon-meta span { font-size: 8px; letter-spacing: .11em; }
+
+.hullwatch-threats strong {
+  display: block;
+  margin-top: 2px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 30px;
+  font-weight: 450;
+  letter-spacing: .04em;
+}
+
+.hullwatch-threats small {
+  display: block;
+  margin-top: 1px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 8px;
+  letter-spacing: .1em;
+  color: rgb(223 230 231 / 0.52);
+}
+
+.hullwatch-state {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(640px, calc(100vw - 40px));
+  padding: 34px 36px 32px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgb(226 233 233 / 0.16);
+  background: linear-gradient(145deg, rgb(5 8 10 / 0.95), rgb(5 7 9 / 0.86));
+  box-shadow: 0 30px 100px rgb(0 0 0 / 0.48);
+  backdrop-filter: blur(16px);
+  z-index: 5;
+}
+
+.hullwatch-state > p {
+  margin: 0 0 10px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: .19em;
+  color: #a7b8bb;
+}
+
+.hullwatch-state h2 {
+  margin: 0;
+  font-size: clamp(38px, 5vw, 68px);
+  line-height: .94;
+  font-weight: 520;
+  letter-spacing: -.04em;
+}
+
+.hullwatch-state h3 {
+  margin: 16px 0 26px;
+  font-size: 18px;
+  font-weight: 450;
+  color: rgb(238 238 232 / 0.78);
+}
+
+.hullwatch-briefing {
+  display: grid;
+  gap: 1px;
+  margin-bottom: 26px;
+  border-top: 1px solid rgb(230 235 235 / 0.12);
+}
+
+.hullwatch-briefing span {
+  display: grid;
+  grid-template-columns: 82px 1fr;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgb(230 235 235 / 0.1);
+  color: rgb(231 234 232 / 0.65);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.hullwatch-briefing b {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: .14em;
+  color: #c5dadd;
+}
+
+.hullwatch-state button {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid rgb(231 235 233 / 0.2);
+  font: inherit;
+}
+
+.hullwatch-state .primary {
+  margin-right: 8px;
+  background: #d7ddd8;
+  border-color: #d7ddd8;
+  color: #090b0c;
+  font-weight: 650;
+}
+
+.hullwatch-state .secondary {
+  background: rgb(255 255 255 / 0.025);
+  color: rgb(235 237 233 / 0.7);
+}
+
+.hullwatch-state button:hover:not(:disabled) { filter: brightness(1.1); }
+.hullwatch-state button:disabled { opacity: .42; }
+.hullwatch-state.compact { width: min(430px, calc(100vw - 40px)); text-align: center; }
+.hullwatch-state.compact h2 { margin-bottom: 24px; font-size: 40px; }
+.hullwatch-state.failed > p { color: #c77c6a; }
+
+.hullwatch-final-score {
+  margin: 22px 0 16px;
+  padding: 16px 0;
+  border-top: 1px solid rgb(231 235 233 / 0.12);
+  border-bottom: 1px solid rgb(231 235 233 / 0.12);
+}
+
+.hullwatch-final-score span,
+.hullwatch-result-grid small {
+  display: block;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 9px;
+  letter-spacing: .14em;
+  color: rgb(225 231 231 / 0.48);
+}
+
+.hullwatch-final-score strong {
+  display: block;
+  margin-top: 4px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 36px;
+  font-weight: 450;
+}
+
+.hullwatch-result-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  margin-bottom: 24px;
+}
+
+.hullwatch-result-grid span {
+  padding: 12px;
+  background: rgb(255 255 255 / 0.025);
+}
+
+.hullwatch-result-grid strong { display: block; margin-top: 5px; font-size: 22px; font-weight: 500; }
+
+.hullwatch-mobile-fire { display: none; }
+
+@media (pointer: coarse), (max-width: 800px) {
+  .hullwatch-topbar {
+    min-height: 76px;
+    padding: 14px 15px;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 8px;
+  }
+
+  .hullwatch-score strong { font-size: 22px; }
+  .hullwatch-score small { display: none; }
+  .hullwatch-mission > span { display: none; }
+  .hullwatch-mission b { font-size: 20px; }
+  .hullwatch-mission strong { font-size: 9px; }
+  .hullwatch-hull strong { font-size: 20px; }
+  .hullwatch-hull > div { width: 105px; }
+  .hullwatch-actions { top: 78px; right: 10px; transform: none; }
+  .hullwatch-actions button:not(.close) { display: none; }
+  .hullwatch-callout { top: 13%; }
+  .hullwatch-reticle { width: 72px; height: 72px; }
+  .hullwatch-weapon { left: 14px; bottom: 12px; min-width: 190px; padding: 10px 11px; }
+  .hullwatch-threats { display: none; }
+
+  .hullwatch-mobile-fire {
+    display: flex;
+    position: absolute;
+    right: 18px;
+    bottom: 18px;
+    width: 92px;
+    height: 92px;
+    border: 1px solid rgb(220 229 230 / 0.34);
+    border-radius: 50%;
+    background: rgb(7 10 12 / 0.68);
+    color: #e7ece9;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(8px);
+    touch-action: none;
+  }
+
+  .hullwatch-mobile-fire span { font-family: "SFMono-Regular", Consolas, monospace; font-size: 16px; letter-spacing: .12em; }
+  .hullwatch-mobile-fire small { margin-top: 3px; font-family: "SFMono-Regular", Consolas, monospace; font-size: 8px; letter-spacing: .15em; opacity: .5; }
+  .hullwatch-mobile-fire:active:not(:disabled) { transform: scale(.94); background: rgb(177 91 70 / 0.32); }
+  .hullwatch-mobile-fire:disabled { opacity: .34; }
+
+  .hullwatch-state {
+    width: min(560px, calc(100vw - 24px));
+    max-height: calc(100vh - 24px);
+    overflow: auto;
+    padding: 22px 20px;
+  }
+
+  .hullwatch-state h2 { font-size: 42px; }
+  .hullwatch-state h3 { margin: 10px 0 17px; font-size: 15px; }
+  .hullwatch-briefing span { grid-template-columns: 68px 1fr; padding: 9px 0; font-size: 11px; }
+  .hullwatch-result-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hullwatch-reticle,
+  .hullwatch-callout,
+  .hullwatch-hull > div b,
+  .heat-track b { transition: none; }
+}
