@@ -109,33 +109,33 @@ export async function createSynapsePinballScene(
   const scene = new Scene(engine);
   scene.skipPointerMovePicking = true;
   scene.constantlyUpdateMeshUnderPointer = false;
-  scene.clearColor = new Color4(0.006, 0.007, 0.01, 1);
+  scene.clearColor = new Color4(0.0015, 0.0018, 0.0024, 1);
   scene.fogMode = Scene.FOGMODE_NONE;
   scene.imageProcessingConfiguration.toneMappingEnabled = true;
-  scene.imageProcessingConfiguration.exposure = 1.05;
-  scene.imageProcessingConfiguration.contrast = 1.28;
+  scene.imageProcessingConfiguration.exposure = 1.12;
+  scene.imageProcessingConfiguration.contrast = 1.34;
   scene.imageProcessingConfiguration.vignetteEnabled = true;
-  scene.imageProcessingConfiguration.vignetteWeight = 1.05;
-  scene.imageProcessingConfiguration.vignetteColor = new Color4(0.015, 0.012, 0.008, 1);
+  scene.imageProcessingConfiguration.vignetteWeight = 0.92;
+  scene.imageProcessingConfiguration.vignetteColor = new Color4(0.004, 0.003, 0.002, 1);
 
-  // Ergonomic Player Perspective Camera
-  const camera = new FreeCamera("pinball-camera", new Vector3(0, 18.5, -14.2), scene);
+  // A slightly higher instrument-view camera keeps the frameless silhouette readable.
+  const camera = new FreeCamera("pinball-camera", new Vector3(0, 21.2, -16.8), scene);
   camera.minZ = 0.1;
   camera.maxZ = 400;
-  camera.fov = 0.78;
-  const baseCameraTarget = new Vector3(0, 1.2, 3.5);
+  camera.fov = 0.8;
+  const baseCameraTarget = new Vector3(0, 0.75, 3.2);
   camera.setTarget(baseCameraTarget);
 
   // Restrained gallery lighting: the table is the subject, not the room around it.
   const ambient = new HemisphericLight("mainframe-ambient", new Vector3(0, 1, 0), scene);
-  ambient.intensity = 0.58;
-  ambient.diffuse = new Color3(0.34, 0.36, 0.38);
-  ambient.groundColor = new Color3(0.025, 0.027, 0.03);
+  ambient.intensity = 0.66;
+  ambient.diffuse = new Color3(0.42, 0.43, 0.43);
+  ambient.groundColor = new Color3(0.018, 0.019, 0.023);
 
   const keyLight = new DirectionalLight("solar-key", new Vector3(-0.35, -0.85, 0.4), scene);
   keyLight.position = new Vector3(14, 28, -12);
-  keyLight.intensity = 2.4;
-  keyLight.diffuse = new Color3(1, 0.91, 0.73);
+  keyLight.intensity = 2.8;
+  keyLight.diffuse = new Color3(1, 0.89, 0.7);
 
   // Real-Time Shadow Generator
   const shadowGenerator = mobileTier
@@ -148,14 +148,14 @@ export async function createSynapsePinballScene(
     shadowGenerator.normalBias = 0.002;
   }
 
-  const rimLightCyan = new PointLight("cyan-rim", new Vector3(-12, 10, 5), scene);
-  rimLightCyan.intensity = mobileTier ? 4 : 7;
-  rimLightCyan.range = 30;
+  const rimLightCyan = new PointLight("cyan-rim", new Vector3(-10, 8, 7), scene);
+  rimLightCyan.intensity = mobileTier ? 2.5 : 4.5;
+  rimLightCyan.range = 24;
   rimLightCyan.diffuse = new Color3(0.22, 0.72, 0.76);
 
-  const rimLightAmber = new PointLight("amber-rim", new Vector3(12, 10, 8), scene);
-  rimLightAmber.intensity = mobileTier ? 3.5 : 6;
-  rimLightAmber.range = 30;
+  const rimLightAmber = new PointLight("amber-rim", new Vector3(10, 9, 5), scene);
+  rimLightAmber.intensity = mobileTier ? 2.5 : 4.5;
+  rimLightAmber.range = 24;
   rimLightAmber.diffuse = new Color3(1, 0.55, 0.2);
 
   const audio = new PinballAudio();
@@ -177,43 +177,34 @@ export async function createSynapsePinballScene(
     return mat;
   };
 
-  const pbrClearGlass = (name: string, tint = new Color3(0.85, 0.9, 0.91)) => {
+  const pbrClearGlass = (name: string, tint = new Color3(0.5, 0.67, 0.69), alpha = 0.3) => {
     const mat = new PBRMaterial(name, scene);
     mat.albedoColor = tint;
     mat.metallic = 0.1;
-    mat.roughness = 0.34;
-    mat.alpha = 0.32;
+    mat.roughness = 0.28;
+    mat.alpha = alpha;
     mat.transparencyMode = PBRMaterial.PBRMATERIAL_ALPHABLEND;
     return mat;
   };
 
-  const railIvoryMat = pbrMetal("rail-ivory", new Color3(0.78, 0.77, 0.71), 0.08, 0.86);
-  const hazardAmberMat = emissiveMat("hazard-amber", new Color3(0.95, 0.43, 0.1), 0.88);
-  const cyanAccentMat = emissiveMat("cyan-accent", new Color3(0.16, 0.66, 0.7), 0.8);
-  const amberAccentMat = emissiveMat("amber-accent", new Color3(0.92, 0.55, 0.2), 0.82);
-  const darkTitaniumMat = pbrMetal("dark-titanium", new Color3(0.035, 0.04, 0.05), 0.62, 0.58);
-  const satinAlloyMat = pbrMetal("satin-alloy", new Color3(0.54, 0.56, 0.57), 0.78, 0.42);
-  const carbonApronMat = pbrMetal("carbon-apron", new Color3(0.018, 0.021, 0.026), 0.3, 0.72);
+  const railIvoryMat = pbrMetal("relay-ivory", new Color3(0.68, 0.66, 0.58), 0.2, 0.62);
+  const ivoryInsetMat = pbrMetal("relay-ivory-inset", new Color3(0.82, 0.79, 0.69), 0.12, 0.72);
+  const hazardAmberMat = emissiveMat("hazard-amber", new Color3(0.94, 0.38, 0.055), 0.76);
+  const cyanAccentMat = emissiveMat("cyan-accent", new Color3(0.12, 0.57, 0.64), 0.72);
+  const amberAccentMat = emissiveMat("amber-accent", new Color3(0.93, 0.46, 0.12), 0.74);
+  const darkTitaniumMat = pbrMetal("dark-titanium", new Color3(0.026, 0.031, 0.04), 0.74, 0.48);
+  const graphiteMat = pbrMetal("graphite-composite", new Color3(0.045, 0.052, 0.063), 0.24, 0.7);
+  const satinAlloyMat = pbrMetal("satin-alloy", new Color3(0.46, 0.48, 0.48), 0.8, 0.34);
+  const blackCeramicMat = pbrMetal("black-ceramic", new Color3(0.012, 0.015, 0.02), 0.1, 0.38);
+  const smokedGlassMat = pbrClearGlass("smoked-relay-glass", new Color3(0.18, 0.36, 0.39), 0.25);
 
-  // Minimal exhibition bay. Sparse silhouettes keep the table readable and match the portal.
-  const envRoot = new TransformNode("mainframe-env", scene);
-
-  const floor = CreateBox("gallery-floor", { width: 70, height: 1, depth: 70 }, scene);
-  floor.position.set(0, -5, 10);
-  floor.material = pbrMetal("floor-mat", new Color3(0.012, 0.014, 0.017), 0.12, 0.94);
-  floor.parent = envRoot;
-
-  for (const side of [-1, 1]) {
-    const frame = CreateBox(`gallery-frame-${side}`, { width: 0.8, height: 22, depth: 0.8 }, scene);
-    frame.position.set(side * 15.5, 6, 6);
-    frame.material = darkTitaniumMat;
-    frame.parent = envRoot;
-
-    const datum = CreateBox(`gallery-datum-${side}`, { width: 0.1, height: 8, depth: 0.1 }, scene);
-    datum.position.set(side * 15.05, 6, 6);
-    datum.material = side < 0 ? cyanAccentMat : amberAccentMat;
-    datum.parent = envRoot;
-  }
+  // The approved direction has no cabinet or room frame. A soft undertray gives the floating
+  // instrument a shadow while disappearing into the portal-black environment.
+  const envRoot = new TransformNode("relay-environment", scene);
+  const underShadow = CreateBox("relay-under-shadow", { width: 16.2, height: 0.25, depth: 28.4 }, scene);
+  underShadow.position.set(0, -1.65, 3.2);
+  underShadow.material = blackCeramicMat;
+  underShadow.parent = envRoot;
 
   // Table Root with realistic 9.5 deg pitch
   const tableWidth = 14.4;
@@ -226,63 +217,70 @@ export async function createSynapsePinballScene(
   const dCtx = deckTexture.getContext() as unknown as CanvasRenderingContext2D;
 
   function renderPlayfieldTexture(activeMult = 1) {
-    dCtx.fillStyle = "#08090c";
+    dCtx.fillStyle = "#090c11";
     dCtx.fillRect(0, 0, 2048, 4096);
 
-    dCtx.strokeStyle = "rgba(232, 229, 215, 0.035)";
-    dCtx.lineWidth = 2;
-    for (let x = 128; x < 2048; x += 256) {
-      dCtx.beginPath();
-      dCtx.moveTo(x, 0);
-      dCtx.lineTo(x, 4096);
-      dCtx.stroke();
-    }
-    for (let y = 160; y < 4096; y += 320) {
-      dCtx.beginPath();
-      dCtx.moveTo(0, y);
-      dCtx.lineTo(2048, y);
-      dCtx.stroke();
-    }
+    // Large graphite plates replace the flat grid and give the deck manufactured depth.
+    const plates: ReadonlyArray<readonly [number, number, number, number]> = [
+      [90, 110, 840, 1120],
+      [1118, 110, 840, 1120],
+      [90, 1320, 1870, 1460],
+      [90, 2870, 840, 1110],
+      [1118, 2870, 840, 1110],
+    ];
+    plates.forEach(([x, y, width, height], index) => {
+      dCtx.fillStyle = index === 2 ? "#0c1016" : "#0d1117";
+      dCtx.fillRect(x, y, width, height);
+      dCtx.strokeStyle = "rgba(209, 200, 175, 0.12)";
+      dCtx.lineWidth = 3;
+      dCtx.strokeRect(x, y, width, height);
+    });
 
-    dCtx.strokeStyle = "rgba(226, 220, 197, 0.34)";
-    dCtx.lineWidth = 6;
-    dCtx.strokeRect(96, 96, 1856, 3904);
-
-    dCtx.strokeStyle = "rgba(196, 118, 45, 0.42)";
-    dCtx.lineWidth = 4;
-    for (let i = 0; i < 6; i += 1) {
-      const startX = 300 + i * 290;
-      const offset = i % 2 === 0 ? 115 : -115;
+    dCtx.strokeStyle = "rgba(220, 210, 183, 0.19)";
+    dCtx.lineWidth = 3;
+    for (let i = 0; i < 9; i += 1) {
+      const x = 220 + i * 204;
+      const bend = i % 2 === 0 ? 150 : -150;
       dCtx.beginPath();
-      dCtx.moveTo(startX, 520);
-      dCtx.lineTo(startX, 1300);
-      dCtx.lineTo(startX + offset, 1620);
+      dCtx.moveTo(x, 340);
+      dCtx.lineTo(x, 980);
+      dCtx.lineTo(x + bend, 1270);
       dCtx.stroke();
-      dCtx.fillStyle = "rgba(196, 118, 45, 0.7)";
+      dCtx.fillStyle = i % 2 === 0 ? "rgba(208, 99, 29, 0.7)" : "rgba(44, 153, 166, 0.62)";
       dCtx.beginPath();
-      dCtx.arc(startX, 520, 7, 0, Math.PI * 2);
+      dCtx.arc(x, 340, 8, 0, Math.PI * 2);
       dCtx.fill();
     }
 
-    dCtx.strokeStyle = "rgba(207, 126, 49, 0.72)";
-    dCtx.lineWidth = 8;
-    dCtx.shadowColor = "rgba(207, 126, 49, 0.6)";
-    dCtx.shadowBlur = 8;
-    dCtx.beginPath();
-    dCtx.arc(1024, 1800, 285, 0, Math.PI * 2);
-    dCtx.stroke();
-    dCtx.strokeStyle = "rgba(232, 229, 215, 0.18)";
-    dCtx.lineWidth = 3;
-    dCtx.beginPath();
-    dCtx.arc(1024, 1800, 155, 0, Math.PI * 2);
-    dCtx.stroke();
+    // Relay core schematics echo the real stacked mechanism above the texture.
+    for (const [radius, alpha] of [[360, 0.56], [285, 0.32], [180, 0.2]] as const) {
+      dCtx.strokeStyle = `rgba(214, 111, 38, ${alpha})`;
+      dCtx.lineWidth = radius === 360 ? 9 : 4;
+      dCtx.beginPath();
+      dCtx.arc(1024, 1890, radius, 0, Math.PI * 2);
+      dCtx.stroke();
+    }
+    for (let spoke = 0; spoke < 12; spoke += 1) {
+      const angle = (spoke / 12) * Math.PI * 2;
+      dCtx.strokeStyle = spoke % 3 === 0 ? "rgba(57, 166, 178, 0.48)" : "rgba(220, 210, 183, 0.14)";
+      dCtx.lineWidth = spoke % 3 === 0 ? 5 : 2;
+      dCtx.beginPath();
+      dCtx.moveTo(1024 + Math.cos(angle) * 190, 1890 + Math.sin(angle) * 190);
+      dCtx.lineTo(1024 + Math.cos(angle) * 350, 1890 + Math.sin(angle) * 350);
+      dCtx.stroke();
+    }
 
-    dCtx.strokeStyle = "rgba(58, 158, 168, 0.54)";
-    dCtx.shadowColor = "rgba(58, 158, 168, 0.45)";
+    // The upper arc is a route map rather than decorative neon.
+    dCtx.strokeStyle = "rgba(49, 158, 171, 0.46)";
+    dCtx.lineWidth = 7;
     dCtx.beginPath();
-    dCtx.arc(1024, 830, 430, 0.22, Math.PI - 0.22);
+    dCtx.arc(1024, 720, 560, 0.12, Math.PI - 0.12);
     dCtx.stroke();
-    dCtx.shadowBlur = 0;
+    dCtx.strokeStyle = "rgba(213, 106, 32, 0.38)";
+    dCtx.lineWidth = 4;
+    dCtx.beginPath();
+    dCtx.arc(1024, 720, 490, 0.2, Math.PI - 0.2);
+    dCtx.stroke();
 
     const drawChevron = (cx: number, cy: number, color: string) => {
       dCtx.fillStyle = color;
@@ -298,16 +296,16 @@ export async function createSynapsePinballScene(
     };
 
     for (let c = 0; c < 3; c += 1) {
-      drawChevron(520, 2220 - c * 92, "rgba(58, 158, 168, 0.72)");
+      drawChevron(430, 2480 - c * 92, "rgba(58, 158, 168, 0.72)");
     }
     for (let c = 0; c < 3; c += 1) {
-      drawChevron(1528, 2220 - c * 92, "rgba(207, 126, 49, 0.78)");
+      drawChevron(1618, 2480 - c * 92, "rgba(207, 126, 49, 0.78)");
     }
 
     const multValues = [2, 4, 6, 8, 10];
     multValues.forEach((val, idx) => {
       const active = activeMult >= val;
-      const my = 2750 - idx * 130;
+      const my = 3180 - idx * 132;
       dCtx.fillStyle = active ? "#d59a59" : "rgba(232, 229, 215, 0.1)";
       dCtx.beginPath();
       dCtx.moveTo(1024, my - 36);
@@ -324,12 +322,12 @@ export async function createSynapsePinballScene(
       dCtx.fillText(`×${val}`, 1024, my);
     });
 
-    dCtx.fillStyle = "rgba(232, 229, 215, 0.34)";
-    dCtx.font = "600 22px monospace";
+    dCtx.fillStyle = "rgba(232, 225, 205, 0.45)";
+    dCtx.font = "600 23px monospace";
     dCtx.textAlign = "center";
-    dCtx.fillText("SYNAPSE / TABLE 01", 1024, 360);
-    dCtx.fillText("CORE CAPTURE", 1024, 2180);
-    dCtx.fillText("OVERCLOCK", 1024, 3060);
+    dCtx.fillText("ORBITAL RELAY / TABLE 01", 1024, 210);
+    dCtx.fillText("CAPTURE ARRAY", 1024, 2380);
+    dCtx.fillText("ROUTE POWER", 1024, 3460);
 
     deckTexture.update();
   }
@@ -338,69 +336,123 @@ export async function createSynapsePinballScene(
 
   const deckMat = new PBRMaterial("deck-pbr", scene);
   deckMat.albedoTexture = deckTexture;
-  deckMat.metallic = 0.05;
-  deckMat.roughness = 0.82;
+  deckMat.metallic = 0.18;
+  deckMat.roughness = 0.68;
 
-  const deck = CreateBox("table-bed", { width: tableWidth, height: 0.6, depth: tableLength }, scene);
-  deck.position.set(0, -0.3, 3);
+  const undertray = CreateBox("relay-undertray", { width: 14, height: 0.42, depth: 25.7 }, scene);
+  undertray.position.set(0, -0.5, 3);
+  undertray.material = graphiteMat;
+  undertray.parent = tableRoot;
+
+  const deck = CreateBox("relay-playfield", { width: 13.65, height: 0.24, depth: 25.35 }, scene);
+  deck.position.set(-0.1, -0.12, 3.05);
   deck.material = deckMat;
   deck.receiveShadows = true;
   deck.parent = tableRoot;
 
-  // Table Boundary Rails with Chamfers & Underglow Channels
-  const railHeight = 1.4;
+  // Physics still use the original 0.7 boundary. Visually, the approved table has only slim
+  // ball guides and discrete anchor modules — no enclosing cabinet.
   const railThickness = 0.7;
 
-  // Left Outer Rail with Neon Underglow
-  const leftRail = CreateBox("rail-left", { width: railThickness, height: railHeight, depth: tableLength }, scene);
-  leftRail.position.set(-tableWidth / 2 + railThickness / 2, railHeight / 2, 3);
-  leftRail.material = railIvoryMat;
-  leftRail.parent = tableRoot;
-  shadowGenerator?.addShadowCaster(leftRail);
+  function createGuide(name: string, path: Vector3[], material = satinAlloyMat, radius = 0.1) {
+    const guide = CreateTube(name, { path, radius, tessellation: mobileTier ? 6 : 10 }, scene);
+    guide.material = material;
+    guide.parent = tableRoot;
+    shadowGenerator?.addShadowCaster(guide);
+    return guide;
+  }
 
-  const leftUnderglow = CreateBox("rail-left-glow", { width: 0.08, height: 0.12, depth: tableLength - 2 }, scene);
-  leftUnderglow.position.set(-tableWidth / 2 + railThickness + 0.05, 0.2, 3);
-  leftUnderglow.material = cyanAccentMat;
-  leftUnderglow.parent = tableRoot;
+  createGuide("left-perimeter-guide", [
+    new Vector3(-6.55, 0.42, -9.8),
+    new Vector3(-6.62, 0.48, 8.8),
+    new Vector3(-6.22, 0.58, 13.3),
+    new Vector3(-5.05, 0.7, 14.95),
+  ]);
+  createGuide("right-perimeter-guide", [
+    new Vector3(6.55, 0.42, -9.8),
+    new Vector3(6.62, 0.48, 8.8),
+    new Vector3(6.22, 0.58, 13.3),
+    new Vector3(5.05, 0.7, 14.95),
+  ]);
+  createGuide("upper-return-guide", [
+    new Vector3(-5.05, 0.7, 14.95),
+    new Vector3(-2.6, 0.78, 15.45),
+    new Vector3(0, 0.8, 15.55),
+    new Vector3(2.6, 0.78, 15.45),
+    new Vector3(5.05, 0.7, 14.95),
+  ], railIvoryMat, 0.13);
+  createGuide("plunger-lane-guide", [
+    new Vector3(5.5, 0.38, -8.9),
+    new Vector3(5.5, 0.42, 8.6),
+    new Vector3(5.85, 0.52, 11.8),
+  ], railIvoryMat, 0.11);
 
-  // Right Outer Rail & Plunger Divider
-  const rightRail = CreateBox("rail-right", { width: railThickness, height: railHeight, depth: tableLength }, scene);
-  rightRail.position.set(tableWidth / 2 - railThickness / 2, railHeight / 2, 3);
-  rightRail.material = railIvoryMat;
-  rightRail.parent = tableRoot;
-  shadowGenerator?.addShadowCaster(rightRail);
+  function createArmorModule(
+    name: string,
+    x: number,
+    z: number,
+    width: number,
+    depth: number,
+    rotation: number,
+    accent: StandardMaterial,
+  ) {
+    const root = new TransformNode(name, scene);
+    root.position.set(x, 0, z);
+    root.rotation.y = rotation;
+    root.parent = tableRoot;
 
-  const rightUnderglow = CreateBox("rail-right-glow", { width: 0.08, height: 0.12, depth: tableLength - 2 }, scene);
-  rightUnderglow.position.set(tableWidth / 2 - railThickness - 0.05, 0.2, 3);
-  rightUnderglow.material = amberAccentMat;
-  rightUnderglow.parent = tableRoot;
+    const base = CreateBox(`${name}-base`, { width, height: 0.42, depth }, scene);
+    base.position.y = 0.22;
+    base.material = darkTitaniumMat;
+    base.parent = root;
+    shadowGenerator?.addShadowCaster(base);
 
-  const plungerDivider = CreateBox("plunger-divider", { width: 0.35, height: railHeight, depth: tableLength * 0.75 }, scene);
-  plungerDivider.position.set(tableWidth / 2 - 1.7, railHeight / 2, -0.1);
-  plungerDivider.material = railIvoryMat;
-  plungerDivider.parent = tableRoot;
-  shadowGenerator?.addShadowCaster(plungerDivider);
+    const armor = CreateBox(`${name}-armor`, { width: width * 0.82, height: 0.24, depth: depth * 0.7 }, scene);
+    armor.position.y = 0.53;
+    armor.material = railIvoryMat;
+    armor.parent = root;
+    shadowGenerator?.addShadowCaster(armor);
 
-  // Top Curved Arch & Hazard Warning Header
-  const topArch = CreateBox("rail-top", { width: tableWidth, height: railHeight, depth: railThickness }, scene);
-  topArch.position.set(0, railHeight / 2, tableLength / 2 + 3 - railThickness / 2);
-  topArch.material = railIvoryMat;
-  topArch.parent = tableRoot;
-  shadowGenerator?.addShadowCaster(topArch);
+    const recess = CreateBox(`${name}-recess`, { width: width * 0.48, height: 0.1, depth: depth * 0.34 }, scene);
+    recess.position.y = 0.7;
+    recess.material = blackCeramicMat;
+    recess.parent = root;
 
-  const topHazard = CreateBox("hazard-top-trim", { width: tableWidth - 1, height: 0.12, depth: 0.15 }, scene);
-  topHazard.position.set(0, railHeight + 0.06, tableLength / 2 + 3 - railThickness / 2);
-  topHazard.material = hazardAmberMat;
-  topHazard.parent = tableRoot;
+    const datum = CreateBox(`${name}-datum`, { width: width * 0.62, height: 0.06, depth: 0.09 }, scene);
+    datum.position.set(0, 0.77, depth * 0.17);
+    datum.material = accent;
+    datum.parent = root;
 
-  // Lower Apron Assembly (Brushed Carbon with instruction card slot)
-  const apron = CreateBox("apron-plate", { width: tableWidth - 3.8, height: 0.6, depth: 5 }, scene);
-  apron.position.set(-0.9, 0.35, -8.5);
-  apron.material = carbonApronMat;
-  apron.parent = tableRoot;
-  shadowGenerator?.addShadowCaster(apron);
+    for (const side of [-1, 1]) {
+      const bolt = CreateCylinder(`${name}-bolt-${side}`, { height: 0.12, diameter: 0.16, tessellation: 10 }, scene);
+      bolt.position.set(side * width * 0.31, 0.72, -depth * 0.22);
+      bolt.material = satinAlloyMat;
+      bolt.parent = root;
+    }
 
-  // 3 Multi-Tiered Faceted Quartz Prism Bumpers
+    return root;
+  }
+
+  createArmorModule("left-lower-anchor", -5.35, -7.4, 2.2, 3.4, -0.12, cyanAccentMat);
+  createArmorModule("right-lower-anchor", 4.75, -7.4, 2.2, 3.4, 0.12, amberAccentMat);
+  createArmorModule("left-mid-anchor", -5.8, 1.9, 1.35, 3.2, 0.06, cyanAccentMat);
+  createArmorModule("right-mid-anchor", 5.1, 1.9, 1.35, 3.2, -0.06, amberAccentMat);
+  createArmorModule("left-upper-anchor", -5.15, 12.15, 1.65, 3.0, -0.28, amberAccentMat);
+  createArmorModule("right-upper-anchor", 5.0, 11.7, 1.65, 3.8, 0.32, cyanAccentMat);
+
+  const insertCoords = [
+    [-4.4, -1.4], [-3.8, 0], [-3.25, 1.4],
+    [4.4, -1.4], [3.8, 0], [3.25, 1.4],
+    [-1.15, -2.2], [0, -2.45], [1.15, -2.2],
+  ] as const;
+  insertCoords.forEach(([x, z], index) => {
+    const insert = CreateCylinder(`route-insert-${index}`, { height: 0.08, diameter: index > 5 ? 0.38 : 0.31, tessellation: 18 }, scene);
+    insert.position.set(x, 0.05, z);
+    insert.material = index % 3 === 0 ? cyanAccentMat : amberAccentMat;
+    insert.parent = tableRoot;
+  });
+
+  // Three relay turbines: layered housings, isolation rings and recessed optical lenses.
   const bumpers: BumperAssembly[] = [];
   const bumperCoords = [
     { x: -3.0, z: 8.5 },
@@ -413,39 +465,65 @@ export async function createSynapsePinballScene(
     root.position.set(coord.x, 0, coord.z);
     root.parent = tableRoot;
 
-    // Chrome Base Skirt
-    const skirt = CreateCylinder(`bumper-skirt-${idx}`, { height: 0.4, diameterTop: 2.2, diameterBottom: 2.5, tessellation: 24 }, scene);
-    skirt.position.y = 0.2;
-    skirt.material = satinAlloyMat;
+    const lowerBase = CreateCylinder(`bumper-lower-base-${idx}`, { height: 0.26, diameter: 2.7, tessellation: 28 }, scene);
+    lowerBase.position.y = 0.13;
+    lowerBase.material = graphiteMat;
+    lowerBase.parent = root;
+    shadowGenerator?.addShadowCaster(lowerBase);
+
+    const isolationRing = CreateTorus(`bumper-isolation-ring-${idx}`, { diameter: 2.35, thickness: 0.16, tessellation: 28 }, scene);
+    isolationRing.position.y = 0.32;
+    isolationRing.rotation.x = Math.PI / 2;
+    isolationRing.material = amberAccentMat;
+    isolationRing.parent = root;
+
+    const skirt = CreateCylinder(
+      `bumper-skirt-${idx}`,
+      { height: 0.5, diameterTop: 2.0, diameterBottom: 2.45, tessellation: 24 },
+      scene,
+    );
+    skirt.position.y = 0.55;
+    skirt.material = railIvoryMat;
     skirt.parent = root;
     shadowGenerator?.addShadowCaster(skirt);
 
-    // Glowing Internal Filament Cylinder
-    const filamentMat = emissiveMat(`bumper-filament-mat-${idx}`, new Color3(0.18, 0.68, 0.72), 0.9);
-    const filament = CreateCylinder(`bumper-filament-${idx}`, { height: 0.7, diameter: 1.4, tessellation: 18 }, scene);
-    filament.position.y = 0.55;
+    const collar = CreateCylinder(`bumper-collar-${idx}`, { height: 0.25, diameter: 1.75, tessellation: 24 }, scene);
+    collar.position.y = 0.88;
+    collar.material = darkTitaniumMat;
+    collar.parent = root;
+
+    const filamentMat = emissiveMat(`bumper-filament-mat-${idx}`, new Color3(0.14, 0.61, 0.68), 0.82);
+    const filament = CreateCylinder(`bumper-filament-${idx}`, { height: 0.18, diameter: 1.35, tessellation: 24 }, scene);
+    filament.position.y = 1.03;
     filament.material = filamentMat;
     filament.parent = root;
 
-    // Faceted Quartz Glass Cap
-    const cap = CreateCylinder(`bumper-cap-${idx}`, { height: 0.6, diameterTop: 2.4, diameterBottom: 2.0, tessellation: 6 }, scene);
-    cap.position.y = 0.9;
-    cap.material = pbrClearGlass(`bumper-glass-${idx}`, new Color3(0.76, 0.82, 0.82));
+    const cap = CreateCylinder(`bumper-cap-${idx}`, { height: 0.36, diameterTop: 1.35, diameterBottom: 1.62, tessellation: 16 }, scene);
+    cap.position.y = 1.22;
+    cap.material = smokedGlassMat;
     cap.parent = root;
     shadowGenerator?.addShadowCaster(cap);
 
-    // Top Chrome Finial Ring
-    const finial = CreateTorus(`bumper-finial-${idx}`, { diameter: 1.2, thickness: 0.12, tessellation: 20 }, scene);
-    finial.position.y = 1.25;
+    const finial = CreateTorus(`bumper-finial-${idx}`, { diameter: 1.15, thickness: 0.09, tessellation: 24 }, scene);
+    finial.position.y = 1.42;
     finial.rotation.x = Math.PI / 2;
     finial.material = satinAlloyMat;
     finial.parent = root;
 
+    for (let clampIndex = 0; clampIndex < 3; clampIndex += 1) {
+      const angle = (clampIndex / 3) * Math.PI * 2;
+      const clamp = CreateBox(`bumper-clamp-${idx}-${clampIndex}`, { width: 0.3, height: 0.22, depth: 0.62 }, scene);
+      clamp.position.set(Math.cos(angle) * 1.03, 0.92, Math.sin(angle) * 1.03);
+      clamp.rotation.y = -angle;
+      clamp.material = ivoryInsetMat;
+      clamp.parent = root;
+    }
+
     // Radial Point Light
     const light = new PointLight(`bumper-light-${idx}`, new Vector3(0, 1.4, 0), scene);
     light.diffuse = new Color3(0.18, 0.68, 0.72);
-    light.intensity = mobileTier ? 2.5 : 4;
-    light.range = 6;
+    light.intensity = mobileTier ? 2.2 : 3.5;
+    light.range = 5;
     light.parent = root;
 
     bumpers.push({
@@ -460,24 +538,65 @@ export async function createSynapsePinballScene(
     });
   });
 
-  // Dual Sweeping Wireform Habitrails (Ramps)
+  const relayPostCoords = [
+    [-5.45, 6.15], [-5.05, 9.55], [-3.85, 12.55],
+    [5.35, 6.05], [5.1, 9.45], [3.8, 12.5],
+  ] as const;
+  relayPostCoords.forEach(([x, z], index) => {
+    const post = CreateCylinder(`relay-guide-post-${index}`, { height: 1.05, diameter: 0.2, tessellation: 12 }, scene);
+    post.position.set(x, 0.52, z);
+    post.material = satinAlloyMat;
+    post.parent = tableRoot;
+    shadowGenerator?.addShadowCaster(post);
+
+    const postCap = CreateCylinder(`relay-guide-post-cap-${index}`, { height: 0.12, diameter: 0.34, tessellation: 12 }, scene);
+    postCap.position.set(x, 1.08, z);
+    postCap.material = index % 2 === 0 ? railIvoryMat : darkTitaniumMat;
+    postCap.parent = tableRoot;
+  });
+
+  [-1.6, 0, 1.6].forEach((x, index) => {
+    const rollover = CreateCylinder(`upper-rollover-${index}`, { height: 0.08, diameter: 0.48, tessellation: 20 }, scene);
+    rollover.position.set(x, 0.05, 13.2);
+    rollover.material = index === 1 ? amberAccentMat : cyanAccentMat;
+    rollover.parent = tableRoot;
+
+    const rolloverRing = CreateTorus(`upper-rollover-ring-${index}`, { diameter: 0.68, thickness: 0.07, tessellation: 20 }, scene);
+    rolloverRing.position.set(x, 0.1, 13.2);
+    rolloverRing.rotation.x = Math.PI / 2;
+    rolloverRing.material = satinAlloyMat;
+    rolloverRing.parent = tableRoot;
+  });
+
+  // Asymmetric relay routes: a long orbital return on the left and a plated service bridge on
+  // the right. Both keep the original trigger locations, so scoring and physics are unchanged.
   function createWireformRamp(name: string, isLeft: boolean) {
-    const side = isLeft ? -1 : 1;
     const rampRoot = new TransformNode(name, scene);
     rampRoot.parent = tableRoot;
 
-    // Curved Path Points
-    const curvePoints = [
-      new Vector3(side * 3.4, 0.2, 4.5),
-      new Vector3(side * 3.8, 1.6, 6.2),
-      new Vector3(side * 4.2, 2.8, 8.0),
-      new Vector3(side * 3.2, 3.2, 9.8),
-      new Vector3(side * 1.6, 2.6, 8.5),
-      new Vector3(side * 2.2, 1.4, 2.5),
-      new Vector3(side * 2.2, 0.4, -4.5),
-    ];
+    const curvePoints = isLeft
+      ? [
+          new Vector3(-3.5, 0.22, 4.5),
+          new Vector3(-4.7, 1.25, 6.8),
+          new Vector3(-5.25, 2.35, 10.2),
+          new Vector3(-4.3, 3.15, 13.2),
+          new Vector3(-1.8, 3.55, 14.45),
+          new Vector3(1.2, 3.5, 14.2),
+          new Vector3(3.25, 2.8, 12.35),
+          new Vector3(3.8, 1.7, 9.6),
+          new Vector3(2.65, 0.42, 6.1),
+        ]
+      : [
+          new Vector3(3.45, 0.22, 4.5),
+          new Vector3(4.45, 1.15, 6.1),
+          new Vector3(4.2, 2.05, 8.55),
+          new Vector3(2.8, 2.55, 10.0),
+          new Vector3(1.2, 2.32, 8.85),
+          new Vector3(1.55, 1.35, 6.45),
+          new Vector3(2.35, 0.4, 2.45),
+          new Vector3(2.2, 0.24, -2.4),
+        ];
 
-    // Dual Parallel Chrome Rail Tubes
     const leftRailPath = curvePoints.map((pt) => pt.add(new Vector3(-0.25, 0, 0)));
     const rightRailPath = curvePoints.map((pt) => pt.add(new Vector3(0.25, 0, 0)));
 
@@ -491,8 +610,26 @@ export async function createSynapsePinballScene(
     rTube2.parent = rampRoot;
     shadowGenerator?.addShadowCaster(rTube2);
 
-    // Support Stanchions
-    [1, 3, 5].forEach((idx) => {
+    // Smoked deck tiles make the ball route visually legible without turning it into a solid ramp.
+    for (let segment = 0; segment < curvePoints.length - 1; segment += 2) {
+      const start = curvePoints[segment];
+      const end = curvePoints[Math.min(segment + 1, curvePoints.length - 1)];
+      if (!start || !end) continue;
+      const dx = end.x - start.x;
+      const dz = end.z - start.z;
+      const tile = CreateBox(
+        `${name}-glass-tile-${segment}`,
+        { width: 0.72, height: 0.08, depth: Math.sqrt(dx * dx + dz * dz) * 0.86 },
+        scene,
+      );
+      tile.position.set((start.x + end.x) / 2, (start.y + end.y) / 2 - 0.09, (start.z + end.z) / 2);
+      tile.rotation.y = Math.atan2(dx, dz);
+      tile.material = smokedGlassMat;
+      tile.parent = rampRoot;
+    }
+
+    const supportIndices = isLeft ? [1, 3, 5, 7] : [1, 3, 5];
+    supportIndices.forEach((idx) => {
       const pt = curvePoints[idx];
       if (pt) {
         const post = CreateCylinder(`${name}-post-${idx}`, { height: pt.y, diameter: 0.12 }, scene);
@@ -500,15 +637,37 @@ export async function createSynapsePinballScene(
         post.material = darkTitaniumMat;
         post.parent = rampRoot;
         shadowGenerator?.addShadowCaster(post);
+
+        const bracket = CreateBox(`${name}-bracket-${idx}`, { width: 0.8, height: 0.18, depth: 0.34 }, scene);
+        bracket.position.set(pt.x, pt.y + 0.08, pt.z);
+        bracket.rotation.y = idx * 0.18;
+        bracket.material = railIvoryMat;
+        bracket.parent = rampRoot;
       }
     });
 
-    // Glowing Fiber Entrance Arch
+    // Entry coupler marks the real scoring threshold.
+    const entrance = curvePoints[0] ?? Vector3.Zero();
     const arch = CreateTorus(`${name}-entrance-arch`, { diameter: 1.2, thickness: 0.1, tessellation: 20 }, scene);
-    arch.position.set(side * 3.4, 0.8, 4.8);
+    arch.position.set(entrance.x, 0.78, entrance.z + 0.25);
     arch.rotation.x = Math.PI / 2;
     arch.material = isLeft ? cyanAccentMat : amberAccentMat;
     arch.parent = rampRoot;
+
+    if (!isLeft) {
+      const serviceSpine = CreateBox(`${name}-service-spine`, { width: 1.15, height: 0.26, depth: 4.5 }, scene);
+      serviceSpine.position.set(4.55, 1.35, 8.25);
+      serviceSpine.rotation.y = -0.18;
+      serviceSpine.material = railIvoryMat;
+      serviceSpine.parent = rampRoot;
+      shadowGenerator?.addShadowCaster(serviceSpine);
+
+      const serviceRecess = CreateBox(`${name}-service-recess`, { width: 0.62, height: 0.12, depth: 2.8 }, scene);
+      serviceRecess.position.set(4.55, 1.55, 8.25);
+      serviceRecess.rotation.y = -0.18;
+      serviceRecess.material = blackCeramicMat;
+      serviceRecess.parent = rampRoot;
+    }
 
     return rampRoot;
   }
@@ -516,33 +675,86 @@ export async function createSynapsePinballScene(
   createWireformRamp("ramp-left-wireform", true);
   createWireformRamp("ramp-right-wireform", false);
 
-  // Recessed Superconducting Magnetic Well (Center Core)
-  const coreRoot = new TransformNode("quantum-core-assembly", scene);
+  // Large orbital relay core — the table's visual and scoring focal point.
+  const coreRoot = new TransformNode("orbital-relay-core", scene);
   coreRoot.position.set(0, 0, 4.2);
   coreRoot.parent = tableRoot;
 
-  // Stepped Titanium Rings
-  const coreOuterRing = CreateTorus("core-outer-ring", { diameter: 3.6, thickness: 0.22, tessellation: 32 }, scene);
-  coreOuterRing.position.y = 0.15;
+  const corePlinth = CreateCylinder("core-plinth", { height: 0.22, diameter: 4.9, tessellation: 48 }, scene);
+  corePlinth.position.y = 0.09;
+  corePlinth.material = graphiteMat;
+  corePlinth.parent = coreRoot;
+  shadowGenerator?.addShadowCaster(corePlinth);
+
+  const coreOuterRing = CreateTorus("core-outer-ring", { diameter: 4.35, thickness: 0.28, tessellation: 48 }, scene);
+  coreOuterRing.position.y = 0.3;
   coreOuterRing.rotation.x = Math.PI / 2;
-  coreOuterRing.material = darkTitaniumMat;
+  coreOuterRing.material = satinAlloyMat;
   coreOuterRing.parent = coreRoot;
   shadowGenerator?.addShadowCaster(coreOuterRing);
 
-  const coreHazardTeeth = CreateTorus("core-hazard-ring", { diameter: 3.1, thickness: 0.14, tessellation: 32 }, scene);
-  coreHazardTeeth.position.y = 0.18;
+  const coreHazardTeeth = CreateTorus("core-hazard-ring", { diameter: 3.75, thickness: 0.12, tessellation: 40 }, scene);
+  coreHazardTeeth.position.y = 0.36;
   coreHazardTeeth.rotation.x = Math.PI / 2;
   coreHazardTeeth.material = hazardAmberMat;
   coreHazardTeeth.parent = coreRoot;
 
+  const coreRotorRoot = new TransformNode("core-rotor", scene);
+  coreRotorRoot.parent = coreRoot;
+  for (let segment = 0; segment < 12; segment += 1) {
+    const angle = (segment / 12) * Math.PI * 2;
+    const module = CreateBox(
+      `core-rotor-module-${segment}`,
+      { width: segment % 3 === 0 ? 0.58 : 0.42, height: 0.32, depth: 0.82 },
+      scene,
+    );
+    module.position.set(Math.cos(angle) * 1.78, 0.47, Math.sin(angle) * 1.78);
+    module.rotation.y = -angle;
+    module.material = segment % 3 === 0 ? railIvoryMat : darkTitaniumMat;
+    module.parent = coreRotorRoot;
+    shadowGenerator?.addShadowCaster(module);
+
+    const marker = CreateBox(`core-rotor-marker-${segment}`, { width: 0.2, height: 0.06, depth: 0.34 }, scene);
+    marker.position.set(Math.cos(angle) * 1.78, 0.67, Math.sin(angle) * 1.78);
+    marker.rotation.y = -angle;
+    marker.material = segment % 2 === 0 ? amberAccentMat : cyanAccentMat;
+    marker.parent = coreRotorRoot;
+  }
+
+  const coreWell = CreateCylinder("core-well", { height: 0.28, diameter: 2.65, tessellation: 40 }, scene);
+  coreWell.position.y = 0.22;
+  coreWell.material = blackCeramicMat;
+  coreWell.parent = coreRoot;
+
+  const coreLensRing = CreateTorus("core-lens-ring", { diameter: 2.3, thickness: 0.12, tessellation: 40 }, scene);
+  coreLensRing.position.y = 0.38;
+  coreLensRing.rotation.x = Math.PI / 2;
+  coreLensRing.material = cyanAccentMat;
+  coreLensRing.parent = coreRoot;
+
+  const coreLens = CreateCylinder("core-lens", { height: 0.13, diameter: 1.75, tessellation: 40 }, scene);
+  coreLens.position.y = 0.39;
+  coreLens.material = smokedGlassMat;
+  coreLens.parent = coreRoot;
+
   const coreCenterLight = new PointLight("quantum-core-light", new Vector3(0, 1.2, 0), scene);
-  coreCenterLight.diffuse = new Color3(1, 0.5, 0.16);
-  coreCenterLight.intensity = mobileTier ? 3 : 5;
-  coreCenterLight.range = 7;
+  coreCenterLight.diffuse = new Color3(0.22, 0.68, 0.72);
+  coreCenterLight.intensity = mobileTier ? 2.2 : 3.8;
+  coreCenterLight.range = 6;
   coreCenterLight.parent = coreRoot;
 
-  // 4 Logic Gate Drop Targets with Backlit Symbols
+  // Four recessed routing shutters mounted in one substantial mechanical target bank.
   const targets: TargetAssembly[] = [];
+  const targetBank = CreateBox("relay-target-bank", { width: 5.85, height: 0.34, depth: 1.2 }, scene);
+  targetBank.position.set(0, 0.18, 1.25);
+  targetBank.material = graphiteMat;
+  targetBank.parent = tableRoot;
+  shadowGenerator?.addShadowCaster(targetBank);
+
+  const targetBankArmor = CreateBox("relay-target-bank-armor", { width: 5.35, height: 0.18, depth: 0.34 }, scene);
+  targetBankArmor.position.set(0, 0.45, 1.55);
+  targetBankArmor.material = railIvoryMat;
+  targetBankArmor.parent = tableRoot;
   const targetConfigs = [
     { x: -4.0, label: "AND" },
     { x: -2.8, label: "OR" },
@@ -555,17 +767,26 @@ export async function createSynapsePinballScene(
     tRoot.position.set(cfg.x, 0, 1.2);
     tRoot.parent = tableRoot;
 
-    // Recessed Plate
-    const tPlate = CreateBox(`target-plate-${idx}`, { width: 0.85, height: 0.8, depth: 0.2 }, scene);
-    tPlate.position.y = 0.4;
+    const casing = CreateBox(`target-casing-${idx}`, { width: 1.0, height: 0.72, depth: 0.34 }, scene);
+    casing.position.y = 0.4;
+    casing.material = darkTitaniumMat;
+    casing.parent = tRoot;
+
+    const tPlate = CreateBox(`target-plate-${idx}`, { width: 0.7, height: 0.52, depth: 0.16 }, scene);
+    tPlate.position.set(0, 0.5, -0.12);
     tPlate.material = idx < 2 ? cyanAccentMat : amberAccentMat;
     tPlate.parent = tRoot;
     shadowGenerator?.addShadowCaster(tPlate);
 
+    const targetCap = CreateBox(`target-cap-${idx}`, { width: 0.42, height: 0.08, depth: 0.18 }, scene);
+    targetCap.position.set(0, 0.83, 0);
+    targetCap.material = ivoryInsetMat;
+    targetCap.parent = tRoot;
+
     targets.push({ root: tRoot, mesh: tPlate, label: cfg.label, x: cfg.x, y: 1.2, dropped: false });
   });
 
-  // Engineered 3D Articulated Flippers
+  // Machined tapered flippers with embedded route markers.
   const flipperLength = 2.4;
 
   function createDetailedFlipper(name: string, isLeft: boolean) {
@@ -575,25 +796,42 @@ export async function createSynapsePinballScene(
 
     const side = isLeft ? 1 : -1;
 
-    // Tapered Carbon Bat
-    const bat = CreateBox(`${name}-bat`, { width: flipperLength, height: 0.55, depth: 0.42 }, scene);
+    const bat = CreateCylinder(
+      `${name}-bat`,
+      { height: flipperLength, diameterTop: 0.38, diameterBottom: 0.72, tessellation: 14 },
+      scene,
+    );
     bat.position.set(side * (flipperLength / 2), 0, 0);
-    bat.material = darkTitaniumMat;
+    bat.rotation.z = -side * Math.PI / 2;
+    bat.material = ivoryInsetMat;
     bat.parent = root;
     shadowGenerator?.addShadowCaster(bat);
 
-    // Colored High-Tension Silicone Rubber Striking Band
-    const rubber = CreateBox(`${name}-rubber`, { width: flipperLength, height: 0.16, depth: 0.14 }, scene);
-    rubber.position.set(side * (flipperLength / 2), 0.24, 0.2);
+    const underBat = CreateCylinder(
+      `${name}-under-bat`,
+      { height: flipperLength * 0.92, diameterTop: 0.28, diameterBottom: 0.54, tessellation: 14 },
+      scene,
+    );
+    underBat.position.set(side * (flipperLength / 2), -0.13, 0);
+    underBat.rotation.z = -side * Math.PI / 2;
+    underBat.material = darkTitaniumMat;
+    underBat.parent = root;
+
+    const rubber = CreateBox(`${name}-rubber`, { width: flipperLength * 0.78, height: 0.1, depth: 0.18 }, scene);
+    rubber.position.set(side * (flipperLength * 0.48), 0.24, 0.04);
     rubber.material = isLeft ? cyanAccentMat : amberAccentMat;
     rubber.parent = root;
 
-    // Chrome Pivot Hub Cap
-    const hub = CreateCylinder(`${name}-hub`, { height: 0.65, diameter: 0.65, tessellation: 20 }, scene);
-    hub.position.y = 0.05;
+    const hub = CreateCylinder(`${name}-hub`, { height: 0.5, diameter: 0.82, tessellation: 24 }, scene);
+    hub.position.y = 0.02;
     hub.material = satinAlloyMat;
     hub.parent = root;
     shadowGenerator?.addShadowCaster(hub);
+
+    const hubInset = CreateCylinder(`${name}-hub-inset`, { height: 0.12, diameter: 0.48, tessellation: 20 }, scene);
+    hubInset.position.y = 0.33;
+    hubInset.material = blackCeramicMat;
+    hubInset.parent = root;
 
     return root;
   }
@@ -601,7 +839,7 @@ export async function createSynapsePinballScene(
   const flipperLeftRoot = createDetailedFlipper("flipper-left", true);
   const flipperRightRoot = createDetailedFlipper("flipper-right", false);
 
-  // Slingshot Triangular Rebound Banks
+  // Low-profile armored slingshots — layered mechanisms instead of the former white slabs.
   function createSlingshotBank(name: string, isLeft: boolean) {
     const side = isLeft ? -1 : 1;
     const slingRoot = new TransformNode(name, scene);
@@ -609,15 +847,34 @@ export async function createSynapsePinballScene(
     slingRoot.rotation.y = side * 0.3;
     slingRoot.parent = tableRoot;
 
-    const body = CreateBox(`${name}-body`, { width: 1.8, height: 0.7, depth: 3.4 }, scene);
-    body.material = railIvoryMat;
-    body.parent = slingRoot;
-    shadowGenerator?.addShadowCaster(body);
+    const base = CreateBox(`${name}-base`, { width: 1.85, height: 0.3, depth: 3.35 }, scene);
+    base.position.y = 0.12;
+    base.material = graphiteMat;
+    base.parent = slingRoot;
+    shadowGenerator?.addShadowCaster(base);
 
-    const band = CreateBox(`${name}-band`, { width: 0.12, height: 0.2, depth: 3.4 }, scene);
-    band.position.x = -side * 0.85;
+    const armor = CreateBox(`${name}-armor`, { width: 1.38, height: 0.3, depth: 2.55 }, scene);
+    armor.position.set(side * 0.08, 0.42, 0.1);
+    armor.material = railIvoryMat;
+    armor.parent = slingRoot;
+    shadowGenerator?.addShadowCaster(armor);
+
+    const recess = CreateBox(`${name}-recess`, { width: 0.72, height: 0.1, depth: 1.45 }, scene);
+    recess.position.set(-side * 0.12, 0.62, 0.1);
+    recess.material = blackCeramicMat;
+    recess.parent = slingRoot;
+
+    const band = CreateBox(`${name}-band`, { width: 0.11, height: 0.16, depth: 2.75 }, scene);
+    band.position.set(-side * 0.77, 0.5, 0.05);
     band.material = isLeft ? cyanAccentMat : amberAccentMat;
     band.parent = slingRoot;
+
+    for (const z of [-1.2, 1.2]) {
+      const pivot = CreateCylinder(`${name}-pivot-${z}`, { height: 0.56, diameter: 0.3, tessellation: 12 }, scene);
+      pivot.position.set(side * 0.64, 0.34, z);
+      pivot.material = satinAlloyMat;
+      pivot.parent = slingRoot;
+    }
 
     return slingRoot;
   }
@@ -625,7 +882,7 @@ export async function createSynapsePinballScene(
   createSlingshotBank("sling-left-bank", true);
   createSlingshotBank("sling-right-bank", false);
 
-  // Precision Spring Plunger Mechanism
+  // Exposed plunger actuator, deliberately detached from any cabinet wall.
   const plungerRoot = new TransformNode("plunger-assembly", scene);
   plungerRoot.position.set(tableWidth / 2 - 0.85, 0.35, -8.2);
   plungerRoot.parent = tableRoot;
@@ -640,6 +897,22 @@ export async function createSynapsePinballScene(
   plungerTip.position.z = 1.8;
   plungerTip.material = hazardAmberMat;
   plungerTip.parent = plungerRoot;
+
+  for (let coilIndex = 0; coilIndex < 8; coilIndex += 1) {
+    const coil = CreateTorus(`plunger-coil-${coilIndex}`, { diameter: 0.72, thickness: 0.065, tessellation: 18 }, scene);
+    coil.position.set(0, 0, -1.2 + coilIndex * 0.3);
+    coil.rotation.x = Math.PI / 2;
+    coil.material = darkTitaniumMat;
+    coil.parent = plungerRoot;
+  }
+
+  for (const z of [-1.55, 1.55]) {
+    const bracket = CreateBox(`plunger-bracket-${z}`, { width: 1.05, height: 0.72, depth: 0.32 }, scene);
+    bracket.position.z = z;
+    bracket.material = railIvoryMat;
+    bracket.parent = plungerRoot;
+    shadowGenerator?.addShadowCaster(bracket);
+  }
 
   // Satin steel ball stays bright without mirroring the entire environment.
   const ballRadius = 0.45;
@@ -665,7 +938,7 @@ export async function createSynapsePinballScene(
   let ballsRemaining = 3;
   const maxBalls = 3;
   let elapsed = 0;
-  let callout = "QUANTUM MAINFRAME ONLINE — PULL PLUNGER TO LAUNCH";
+  let callout = "ORBITAL RELAY ONLINE — PULL PLUNGER TO LAUNCH";
   let calloutTimer = 4;
 
   // Physics State
@@ -721,7 +994,7 @@ export async function createSynapsePinballScene(
     ballInPlay = true;
     phase = "in_play";
     audio.plungerRelease();
-    callout = "BALL LAUNCHED — OVERCLOCK ACTIVE";
+    callout = "BALL LAUNCHED — RELAY POWER ACTIVE";
     calloutTimer = 2;
   }
 
@@ -884,7 +1157,7 @@ export async function createSynapsePinballScene(
             setTimeout(() => {
               targets.forEach((tgt) => {
                 tgt.dropped = false;
-                tgt.mesh.position.y = 0.4;
+                tgt.mesh.position.y = 0.5;
               });
             }, 1200);
           }
@@ -965,6 +1238,10 @@ export async function createSynapsePinballScene(
   function render() {
     const dt = 0.016;
 
+    if (!reducedMotion) {
+      coreRotorRoot.rotation.y += dt * 0.18;
+    }
+
     // Flipper Animations
     const targetLeftAngle = leftFlipperActive ? 0.68 : -0.45;
     leftFlipperAngle = Scalar.Lerp(leftFlipperAngle, targetLeftAngle, 0.45);
@@ -996,10 +1273,10 @@ export async function createSynapsePinballScene(
     if (cameraShake > 0) {
       cameraShake = Math.max(0, cameraShake - dt * 1.8);
       camera.position.x = (Math.random() - 0.5) * cameraShake * 0.4;
-      camera.position.y = 18.5 + (Math.random() - 0.5) * cameraShake * 0.4;
+      camera.position.y = 21.2 + (Math.random() - 0.5) * cameraShake * 0.4;
     } else {
       camera.position.x = 0;
-      camera.position.y = 18.5;
+      camera.position.y = 21.2;
     }
 
     scene.render();
