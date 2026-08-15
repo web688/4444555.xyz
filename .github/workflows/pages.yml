@@ -24,6 +24,12 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: Assert artifact is complete
+        run: |
+          test -f apps/portal/dist/index.html
+          test -f apps/portal/dist/CNAME
+          test -f apps/portal/dist/.nojekyll
+          grep -q 'crossorigin src="/assets/index-' apps/portal/dist/index.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
