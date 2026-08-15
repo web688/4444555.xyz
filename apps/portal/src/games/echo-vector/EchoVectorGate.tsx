@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { createEchoVectorGame, type EchoTelemetry, type EchoVectorRuntime } from "./game.ts";
 import "./echo-vector.css";
+import "./echo-vector-contrast.css";
 
 type Props = { onExit: () => void };
 
