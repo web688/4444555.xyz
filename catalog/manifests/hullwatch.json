@@ -1,0 +1,22 @@
+{
+  "$schema": "../schema/game-manifest.schema.json",
+  "id": "hullwatch",
+  "version": "0.1.0",
+  "sdk": "0.1.0",
+  "status": "prototype",
+  "title": "Hullwatch",
+  "summary": "Take the dorsal gun station of a capital ship under pursuit. Break strike craft and intercept torpedoes before they reach the hull.",
+  "engine": { "name": "Babylon.js", "version": "9.20.0", "rendering": "3d-adaptive" },
+  "entry": "/src/games/hullwatch/HullwatchGate.tsx",
+  "presentation": { "orientation": "landscape", "aspectRatio": "16:9", "accent": "#b9d0d3" },
+  "input": ["keyboard", "pointer", "touch", "gamepad"],
+  "sessions": { "minimumSeconds": 60, "targetSeconds": 90, "maximumSeconds": 120 },
+  "assets": { "initialBytes": 262144, "totalBytes": 1572864 },
+  "scores": { "mode": "higher-is-better", "ruleset": "carrier-defense-v1", "validation": "local-session" },
+  "achievements": [
+    { "id": "first-escort", "title": "Hullwatch", "target": 1 },
+    { "id": "torpedo-screen-10", "title": "Point Defense", "target": 10 },
+    { "id": "carrier-untouched", "title": "Clean Hull", "target": 1 }
+  ],
+  "save": { "schemaVersion": 1, "maximumBytes": 65536 }
+}
