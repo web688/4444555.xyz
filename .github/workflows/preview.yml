@@ -1,10 +1,11 @@
 name: Deploy Phase Preview
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Verify"]
+    types: [completed]
     branches:
       - "phase/**"
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -17,6 +18,7 @@ concurrency:
 
 jobs:
   deploy-preview:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     environment:
       name: github-pages
       url: https://4444555.xyz/test/
@@ -28,10 +30,10 @@ jobs:
           ref: main
           path: production
 
-      - name: Checkout candidate
+      - name: Checkout verified candidate
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.workflow_run.head_sha }}
           path: candidate
 
       - uses: actions/setup-node@v4
@@ -51,13 +53,16 @@ jobs:
           npm run build --workspace @4444555/portal -- --base=/test/
 
       - name: Assemble production plus preview
+        env:
+          PREVIEW_SHA: ${{ github.event.workflow_run.head_sha }}
+          PREVIEW_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
           rm -rf site
           mkdir -p site/test
           cp -a production/apps/portal/dist/. site/
           cp -a candidate/apps/portal/dist/. site/test/
           rm -f site/test/CNAME
-          printf '{"sha":"%s","branch":"%s"}\n' "$GITHUB_SHA" "$GITHUB_REF_NAME" > site/test/preview.json
+          printf '{"sha":"%s","branch":"%s"}\n' "$PREVIEW_SHA" "$PREVIEW_BRANCH" > site/test/preview.json
           test -f site/index.html
           test -f site/CNAME
           test -f site/.nojekyll
