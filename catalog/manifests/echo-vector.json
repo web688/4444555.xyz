@@ -1,0 +1,22 @@
+{
+  "$schema": "../schema/game-manifest.schema.json",
+  "id": "echo-vector",
+  "version": "0.1.0",
+  "sdk": "0.1.0",
+  "status": "prototype",
+  "title": "Echo Vector",
+  "summary": "Author thirty-second movement phrases, then coordinate with exact temporal echoes of your previous cycles to activate resonance nodes and engineer Confluence events.",
+  "engine": { "name": "PixiJS", "version": "8.18.1", "rendering": "2d-webgl-adaptive" },
+  "entry": "/src/games/echo-vector/EchoVectorGate.tsx",
+  "presentation": { "orientation": "landscape", "aspectRatio": "16:10", "accent": "#b9d2da" },
+  "input": ["keyboard", "pointer", "touch", "gamepad"],
+  "sessions": { "minimumSeconds": 30, "targetSeconds": 180, "maximumSeconds": 210 },
+  "assets": { "initialBytes": 260000, "totalBytes": 520000 },
+  "scores": { "mode": "higher-is-better", "ruleset": "echo-vector-v1", "validation": "local-deterministic-tape" },
+  "achievements": [
+    { "id": "first-echo", "title": "Second Voice", "target": 1 },
+    { "id": "first-confluence", "title": "Confluence", "target": 1 },
+    { "id": "chorus", "title": "Temporal Chorus", "target": 1 }
+  ],
+  "save": { "schemaVersion": 1, "maximumBytes": 65536 }
+}
