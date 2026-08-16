@@ -62,7 +62,7 @@ type Enemy = {
 
 type Threat = {
   root: TransformNode;
-  kind: "bolt" | "torpedo";
+  kind: "torpedo";
   hp: number;
   velocity: Vector3;
   damage: number;
@@ -279,45 +279,56 @@ export async function createHullwatchScene(
   };
 
   const spawnThreat = (enemy: Enemy) => {
-    const torpedo = enemy.kind === "bomber" && random() > 0.18;
-    const root = new TransformNode(`threat-${Math.floor(elapsed * 1000)}-${threats.length}`, scene);
-    root.position.copyFrom(enemy.root.position);
-    const target = torpedo
-      ? new Vector3((random() - 0.5) * 10, -1.2 + random() * 2, 8 + random() * 14)
-      : new Vector3((random() - 0.5) * 15, -0.5 + random() * 4, 4 + random() * 12);
-    const direction = target.subtract(root.position).normalize();
-    const speed = torpedo ? (mobileTier ? 9 : 7) : 34;
+    // Projectile defense has one clear language: only bombers launch interceptable torpedoes.
+    // Fighters must be destroyed before they complete their strike-through run.
+    if (enemy.kind !== "bomber") return;
 
-    if (torpedo) {
-      const body = CreateCylinder("torpedo-body", { height: 2.6, diameter: 0.52, tessellation: 8 }, scene);
-      body.rotation.x = Math.PI / 2;
-      body.material = materials.torpedo;
-      body.parent = root;
-      const nose = CreateSphere("torpedo-nose", { diameter: 0.64, segments: 8 }, scene);
-      nose.position.z = -1.25;
-      nose.material = materials.torpedoHot;
-      nose.parent = root;
-      const tail = CreateCylinder("torpedo-tail", { height: 0.9, diameterTop: 0.12, diameterBottom: 0.6, tessellation: 8 }, scene);
-      tail.rotation.x = Math.PI / 2;
-      tail.position.z = 1.65;
-      tail.material = materials.torpedoHot;
-      tail.parent = root;
-      root.scaling.setAll(mobileTier ? 2.2 : 3.5);
-      root.lookAt(target);
-    } else {
-      const bolt = CreateBox("hostile-bolt", { width: 0.12, height: 0.12, depth: 2.2 }, scene);
-      bolt.material = materials.hostileBolt;
-      bolt.parent = root;
-      root.lookAt(target);
+    const root = new TransformNode(`torpedo-${Math.floor(elapsed * 1000)}-${threats.length}`, scene);
+    root.position.copyFrom(enemy.root.position);
+    const target = new Vector3((random() - 0.5) * 10, -1.2 + random() * 2, 8 + random() * 14);
+    const direction = target.subtract(root.position).normalize();
+    const speed = mobileTier ? 8 : 6;
+
+    const body = CreateCylinder("torpedo-body", { height: 3.2, diameter: 0.72, tessellation: 10 }, scene);
+    body.rotation.x = Math.PI / 2;
+    body.material = materials.torpedo;
+    body.parent = root;
+
+    const nose = CreateSphere("torpedo-nose", { diameter: 0.9, segments: 10 }, scene);
+    nose.position.z = -1.55;
+    nose.material = materials.torpedoHot;
+    nose.parent = root;
+
+    const tail = CreateCylinder("torpedo-tail", { height: 1.35, diameterTop: 0.18, diameterBottom: 0.86, tessellation: 10 }, scene);
+    tail.rotation.x = Math.PI / 2;
+    tail.position.z = 2.15;
+    tail.material = materials.torpedoHot;
+    tail.parent = root;
+
+    // Large emissive collar is an in-world intercept cue, not decorative HUD noise.
+    const collar = CreateTorus("torpedo-intercept-collar", { diameter: 2.1, thickness: 0.09, tessellation: 28 }, scene);
+    collar.rotation.x = Math.PI / 2;
+    collar.position.z = 0.1;
+    collar.material = materials.torpedoHot;
+    collar.parent = root;
+    collar.isPickable = false;
+
+    for (const side of [-1, 1]) {
+      const fin = CreateBox("torpedo-fin", { width: 0.95, height: 0.12, depth: 0.75 }, scene);
+      fin.position.set(side * 0.72, 0, 1.05);
+      fin.material = materials.torpedo;
+      fin.parent = root;
     }
 
-    threats.push({ root, kind: torpedo ? "torpedo" : "bolt", hp: torpedo ? 2 : 1, velocity: direction.scale(speed), damage: torpedo ? 17 : 4 });
-    if (torpedo) setCallout("TORPEDO INBOUND", 1.8);
+    root.scaling.setAll(mobileTier ? 2.5 : 3.8);
+    root.lookAt(target);
+    threats.push({ root, kind: "torpedo", hp: 2, velocity: direction.scale(speed), damage: 17 });
+    setCallout("TORPEDO INBOUND — INTERCEPT", 2.2);
   };
 
   const spawnEnemy = () => {
     const stage = wave();
-    const bomberChance = stage === 1 ? 0.16 : stage === 2 ? 0.28 : 0.38;
+    const bomberChance = stage === 1 ? 0.22 : stage === 2 ? 0.32 : 0.4;
     const kind: EnemyKind = random() < bomberChance ? "bomber" : "fighter";
     const root = new TransformNode(`enemy-${Math.floor(elapsed * 1000)}-${enemies.length}`, scene);
     const side = random() < 0.5 ? -1 : 1;
@@ -382,12 +393,11 @@ export async function createHullwatchScene(
     let bestValue = -Infinity;
 
     for (const threat of threats) {
-      if (threat.kind !== "torpedo") continue;
       const offset = threat.root.position.subtract(camera.position);
       const distance = offset.length();
       if (distance <= 0.01) continue;
       const dot = Vector3.Dot(offset.scale(1 / distance), forward);
-      if (dot < (mobileTier ? 0.9905 : 0.9885)) continue;
+      if (dot < (mobileTier ? 0.989 : 0.986)) continue;
       const value = dot * 4 - distance * 0.0015 + 1.4;
       if (value > bestValue) {
         bestValue = value;
@@ -520,9 +530,9 @@ export async function createHullwatchScene(
       enemy.root.position.y = enemy.baseY + Math.cos(elapsed * 1.15 + enemy.phase) * (enemy.kind === "fighter" ? 2.2 : 1.2);
       enemy.root.rotation.z = Math.sin(elapsed * 1.3 + enemy.phase) * (enemy.kind === "fighter" ? 0.32 : 0.12);
       enemy.attackTimer -= dt;
-      if (enemy.root.position.z < 78 && enemy.attackTimer <= 0) {
+      if (enemy.kind === "bomber" && enemy.root.position.z < 78 && enemy.attackTimer <= 0) {
         spawnThreat(enemy);
-        enemy.attackTimer = enemy.kind === "bomber" ? 3.4 + random() * 1.4 : 1.9 + random() * 1.4;
+        enemy.attackTimer = 4.1 + random() * 1.8;
       }
       if (enemy.root.position.z < 13) {
         damageHull(enemy.kind === "bomber" ? 15 : 8, enemy.kind === "bomber" ? "BOMBER STRIKE THROUGH" : "FIGHTER STRIKE THROUGH");
@@ -538,9 +548,9 @@ export async function createHullwatchScene(
       threat.root.position.x += threat.velocity.x * dt;
       threat.root.position.y += threat.velocity.y * dt;
       threat.root.position.z += threat.velocity.z * dt;
-      if (threat.kind === "torpedo" && !reducedMotion) threat.root.rotation.z += dt * 2.4;
+      if (!reducedMotion) threat.root.rotation.z += dt * 1.3;
       if (threat.root.position.z < 6) {
-        damageHull(threat.damage, threat.kind === "torpedo" ? "TORPEDO IMPACT" : "HULL IMPACT");
+        damageHull(threat.damage, "TORPEDO IMPACT");
         removeThreat(threat);
       }
     }
@@ -820,10 +830,6 @@ function createMaterials(scene: Scene) {
   torpedoHot.diffuseColor = new Color3(0.2, 0.05, 0.02);
   torpedoHot.emissiveColor = new Color3(1, 0.3, 0.09);
 
-  const hostileBolt = new StandardMaterial("hostile-bolt", scene);
-  hostileBolt.diffuseColor = new Color3(0.25, 0.05, 0.02);
-  hostileBolt.emissiveColor = new Color3(1, 0.24, 0.06);
-
   const star = new StandardMaterial("deep-space", scene);
   star.disableLighting = true;
   star.backFaceCulling = false;
@@ -833,7 +839,7 @@ function createMaterials(scene: Scene) {
   planet.metallic = 0.05;
   planet.roughness = 0.92;
 
-  return { hull, armor, ceramic, coolLight, enemyHull, enemyPanel, enemyHot, torpedo, torpedoHot, hostileBolt, star, planet };
+  return { hull, armor, ceramic, coolLight, enemyHull, enemyPanel, enemyHot, torpedo, torpedoHot, star, planet };
 }
 
 function createDeepSpace(scene: Scene, material: StandardMaterial) {
