@@ -26,11 +26,12 @@ func _setup_web_listeners() -> void:
 			if (window._pulse_loom_listener_installed) return;
 			window._pulse_loom_listener_installed = true;
 			window.addEventListener('message', function(event) {
-				if (event.origin !== window.location.origin) return;
+				if (event.source !== window.parent) return;
+				if (!event.origin || event.origin === 'null' || event.origin === '*' || event.origin !== window.location.origin) return;
 				if (!event.data) return;
 				try {
 					var payload = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-					if (payload && typeof payload === 'object' && payload.type && window._godot_pulse_loom_receiver) {
+					if (payload && typeof payload === 'object' && !Array.isArray(payload) && typeof payload.type === 'string' && window._godot_pulse_loom_receiver) {
 						window._godot_pulse_loom_receiver(JSON.stringify(payload));
 					}
 				} catch(e) {
@@ -74,7 +75,13 @@ func send_to_host(msg: Dictionary) -> void:
 	if OS.has_feature("web"):
 		var json_str := JSON.stringify(msg)
 		var escaped := json_str.replace("\\", "\\\\").replace("'", "\\'")
-		JavaScriptBridge.eval("(function(){ if (window.parent && window.parent !== window) { window.parent.postMessage(JSON.parse('" + escaped + "'), window.location.origin); } })();")
+		JavaScriptBridge.eval("""
+		(function() {
+			if (window.parent && window.parent !== window && window.location.origin && window.location.origin !== 'null' && window.location.origin !== '*') {
+				window.parent.postMessage(JSON.parse('""" + escaped + """'), window.location.origin);
+			}
+		})();
+		""")
 
 func send_game_ready() -> void:
 	send_to_host({

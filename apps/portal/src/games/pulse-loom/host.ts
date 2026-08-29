@@ -34,11 +34,11 @@ export interface PulseLoomRunEndedData {
   perfectRoutes: number;
   maxMultiplier: number;
   overloads: number;
-  medal: string;
+  medal: "none" | "bronze" | "silver" | "gold";
 }
 
 export type PulseLoomInboundMessage =
-  | { type: "GAME_READY"; game: string; version: string; sdk: string; engine?: string }
+  | { type: "GAME_READY"; game: "pulse-loom"; version: "0.1.0"; sdk: "0.1.0"; engine?: string }
   | { type: "STATE_CHANGE"; state: "ready" | "running" | "paused" | "ended" }
   | { type: "TELEMETRY"; data: PulseLoomTelemetryData }
   | { type: "RUN_ENDED"; data: PulseLoomRunEndedData }
@@ -65,7 +65,7 @@ export function createPulseLoomRunTicket(seed?: number | string): RunTicket {
     expiresAt: expires.toISOString(),
     seed: seedString,
     ruleset: "conduit-v1",
-    signature: `sig_pl_${id}_${seedString}`,
+    signature: "local-unverified",
   };
 }
 
@@ -76,69 +76,126 @@ export function validateScoreClaim(
   if (!activeTicket) {
     return { valid: false, reason: "No active run ticket found" };
   }
+  if (typeof activeTicket.id !== "string" || !activeTicket.id.startsWith("run-pl-")) {
+    return { valid: false, reason: "Invalid active run ticket ID" };
+  }
+  if (activeTicket.gameId !== "pulse-loom" || activeTicket.gameVersion !== "0.1.0" || activeTicket.ruleset !== "conduit-v1") {
+    return { valid: false, reason: "Active run ticket parameters mismatch (gameId, gameVersion, or ruleset)" };
+  }
+  if (activeTicket.signature !== "local-unverified") {
+    return { valid: false, reason: "Active run ticket signature invalid" };
+  }
+
+  const expiresMs = new Date(activeTicket.expiresAt).getTime();
+  if (isNaN(expiresMs) || expiresMs <= Date.now()) {
+    return { valid: false, reason: "Run ticket has expired" };
+  }
+
   if (claim.runTicketId !== activeTicket.id) {
     return { valid: false, reason: `Ticket ID mismatch: expected ${activeTicket.id}, got ${claim.runTicketId}` };
   }
-  if (typeof claim.score !== "number" || isNaN(claim.score) || claim.score < 0 || !Number.isInteger(claim.score)) {
+
+  const endedMs = new Date(claim.endedAt).getTime();
+  if (isNaN(endedMs) || endedMs > expiresMs) {
+    return { valid: false, reason: "Score claim endedAt exceeds ticket expiry" };
+  }
+
+  if (typeof claim.score !== "number" || isNaN(claim.score) || !Number.isFinite(claim.score) || claim.score < 0 || !Number.isInteger(claim.score)) {
     return { valid: false, reason: "Score must be a non-negative integer" };
   }
-  if (typeof claim.durationMs !== "number" || isNaN(claim.durationMs) || claim.durationMs < 0 || claim.durationMs > 120_000) {
+  if (typeof claim.durationMs !== "number" || isNaN(claim.durationMs) || !Number.isFinite(claim.durationMs) || claim.durationMs < 0 || claim.durationMs > 120_000) {
     return { valid: false, reason: "Duration must be between 0 and 120,000 ms" };
   }
-  if (!claim.stats || typeof claim.stats !== "object") {
+  if (!claim.stats || typeof claim.stats !== "object" || Array.isArray(claim.stats)) {
     return { valid: false, reason: "Stats object required" };
   }
-  const overloads = claim.stats["overloads"] ?? 0;
-  if (overloads > 3) {
-    return { valid: false, reason: "Overloads cannot exceed 3" };
+
+  const overloads = claim.stats["overloads"];
+  if (typeof overloads !== "number" || !Number.isInteger(overloads) || overloads < 0 || overloads > 3) {
+    return { valid: false, reason: "Overloads must be an integer between 0 and 3" };
   }
+
+  const routesCompleted = claim.stats["routesCompleted"];
+  if (routesCompleted !== undefined && (typeof routesCompleted !== "number" || !Number.isInteger(routesCompleted) || routesCompleted < 0)) {
+    return { valid: false, reason: "Routes completed must be a non-negative integer" };
+  }
+
+  const perfectRoutes = claim.stats["perfectRoutes"];
+  if (perfectRoutes !== undefined && (typeof perfectRoutes !== "number" || !Number.isInteger(perfectRoutes) || perfectRoutes < 0)) {
+    return { valid: false, reason: "Perfect routes must be a non-negative integer" };
+  }
+
+  const maxMultiplier = claim.stats["maxMultiplier"];
+  if (maxMultiplier !== undefined && (typeof maxMultiplier !== "number" || !Number.isInteger(maxMultiplier) || maxMultiplier < 1 || maxMultiplier > 10)) {
+    return { valid: false, reason: "Max multiplier must be an integer between 1 and 10" };
+  }
+
   return { valid: true };
 }
 
 export function validateIncomingMessage(
-  event: MessageEvent,
-  expectedWindow: Window | null
+  event: MessageEvent | { source: unknown; origin: unknown; data: unknown },
+  expectedWindow: Window | object | null,
+  expectedOrigin?: string
 ): PulseLoomInboundMessage | null {
-  // Validate source window
-  if (!expectedWindow || event.source !== expectedWindow) {
+  if (!expectedWindow || !event || typeof event !== "object") {
     return null;
   }
 
-  // Validate exact same-origin
-  if (typeof window !== "undefined" && window.location) {
-    const expectedOrigin = window.location.origin;
-    // In standard web environments, event.origin must match window.location.origin
-    if (expectedOrigin && expectedOrigin !== "null" && event.origin && event.origin !== "null") {
-      if (event.origin !== expectedOrigin) {
-        console.warn(`[Pulse Loom Security] Rejected message from untrusted origin: ${event.origin}`);
-        return null;
-      }
-    }
-  }
-
-  const raw = event.data;
-  if (!raw || typeof raw !== "object") {
+  // 1. Exact source window verification
+  if (event.source !== expectedWindow) {
     return null;
   }
 
-  const type = (raw as Record<string, unknown>).type;
+  // 2. Exact same-origin verification (must not be empty, null, 'null', or '*')
+  const targetOrigin =
+    expectedOrigin ||
+    (typeof window !== "undefined" && window.location?.origin && window.location.origin !== "null"
+      ? window.location.origin
+      : "");
+
+  if (!targetOrigin || targetOrigin === "*" || targetOrigin === "null") {
+    return null;
+  }
+
+  if (
+    typeof event.origin !== "string" ||
+    !event.origin ||
+    event.origin === "null" ||
+    event.origin === "*" ||
+    event.origin !== targetOrigin
+  ) {
+    return null;
+  }
+
+  const raw = (event as { data: unknown }).data;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+
+  const obj = raw as Record<string, unknown>;
+  const type = obj.type;
   if (typeof type !== "string") {
     return null;
   }
 
   switch (type) {
     case "GAME_READY": {
-      const game = String((raw as Record<string, unknown>).game || "");
-      const version = String((raw as Record<string, unknown>).version || "");
-      const sdk = String((raw as Record<string, unknown>).sdk || "");
-      const rawEngine = (raw as Record<string, unknown>).engine;
-      return rawEngine
-        ? { type: "GAME_READY", game, version, sdk, engine: String(rawEngine) }
-        : { type: "GAME_READY", game, version, sdk };
+      if (obj.game !== "pulse-loom" || obj.version !== "0.1.0" || obj.sdk !== "0.1.0") {
+        return null;
+      }
+      const engine = typeof obj.engine === "string" && obj.engine.length > 0 ? obj.engine : undefined;
+      return {
+        type: "GAME_READY",
+        game: "pulse-loom",
+        version: "0.1.0",
+        sdk: "0.1.0",
+        ...(engine ? { engine } : {}),
+      };
     }
 
     case "STATE_CHANGE": {
-      const state = (raw as Record<string, unknown>).state;
+      const state = obj.state;
       if (state === "ready" || state === "running" || state === "paused" || state === "ended") {
         return { type: "STATE_CHANGE", state };
       }
@@ -146,21 +203,35 @@ export function validateIncomingMessage(
     }
 
     case "TELEMETRY": {
-      const d = (raw as Record<string, unknown>).data;
-      if (!d || typeof d !== "object") return null;
+      const d = obj.data;
+      if (!d || typeof d !== "object" || Array.isArray(d)) return null;
       const dataObj = d as Record<string, unknown>;
-      const score = Number(dataObj.score ?? 0);
-      const multiplier = Number(dataObj.multiplier ?? 1);
-      const maxMultiplier = Number(dataObj.maxMultiplier ?? 1);
-      const overloads = Number(dataObj.overloads ?? 0);
-      const maxOverloads = Number(dataObj.maxOverloads ?? 3);
-      const timeRemaining = Number(dataObj.timeRemaining ?? 90);
-      const stage = Number(dataObj.stage ?? 1);
-      const routesCompleted = Number(dataObj.routesCompleted ?? 0);
-      const perfectRoutes = Number(dataObj.perfectRoutes ?? 0);
-      const fps = Number(dataObj.fps ?? 60);
 
-      if (isNaN(score) || isNaN(multiplier) || isNaN(timeRemaining) || isNaN(overloads)) {
+      const {
+        score,
+        multiplier,
+        maxMultiplier,
+        overloads,
+        maxOverloads,
+        timeRemaining,
+        stage,
+        routesCompleted,
+        perfectRoutes,
+        fps,
+      } = dataObj;
+
+      if (
+        typeof score !== "number" || !Number.isFinite(score) || score < 0 ||
+        typeof multiplier !== "number" || !Number.isFinite(multiplier) || multiplier < 1 || multiplier > 10 ||
+        typeof maxMultiplier !== "number" || !Number.isFinite(maxMultiplier) || maxMultiplier < 1 || maxMultiplier > 10 ||
+        typeof overloads !== "number" || !Number.isFinite(overloads) || overloads < 0 || overloads > 3 ||
+        typeof maxOverloads !== "number" || !Number.isFinite(maxOverloads) || maxOverloads !== 3 ||
+        typeof timeRemaining !== "number" || !Number.isFinite(timeRemaining) || timeRemaining < 0 || timeRemaining > 90 ||
+        typeof stage !== "number" || !Number.isInteger(stage) || stage < 1 || stage > 4 ||
+        typeof routesCompleted !== "number" || !Number.isInteger(routesCompleted) || routesCompleted < 0 ||
+        typeof perfectRoutes !== "number" || !Number.isInteger(perfectRoutes) || perfectRoutes < 0 ||
+        typeof fps !== "number" || !Number.isFinite(fps) || fps < 0
+      ) {
         return null;
       }
 
@@ -182,20 +253,33 @@ export function validateIncomingMessage(
     }
 
     case "RUN_ENDED": {
-      const d = (raw as Record<string, unknown>).data;
-      if (!d || typeof d !== "object") return null;
+      const d = obj.data;
+      if (!d || typeof d !== "object" || Array.isArray(d)) return null;
       const dataObj = d as Record<string, unknown>;
-      const ticketId = String(dataObj.ticketId || "");
-      const outcome = dataObj.outcome === "complete" ? "complete" : "overload";
-      const score = Number(dataObj.score ?? 0);
-      const durationSeconds = Number(dataObj.durationSeconds ?? 90);
-      const routesCompleted = Number(dataObj.routesCompleted ?? 0);
-      const perfectRoutes = Number(dataObj.perfectRoutes ?? 0);
-      const maxMultiplier = Number(dataObj.maxMultiplier ?? 1);
-      const overloads = Number(dataObj.overloads ?? 0);
-      const medal = String(dataObj.medal || "none");
 
-      if (isNaN(score) || isNaN(durationSeconds)) {
+      const {
+        ticketId,
+        outcome,
+        score,
+        durationSeconds,
+        routesCompleted,
+        perfectRoutes,
+        maxMultiplier,
+        overloads,
+        medal,
+      } = dataObj;
+
+      if (
+        typeof ticketId !== "string" || ticketId.length === 0 || !ticketId.startsWith("run-pl-") ||
+        (outcome !== "complete" && outcome !== "overload") ||
+        typeof score !== "number" || !Number.isInteger(score) || score < 0 ||
+        typeof durationSeconds !== "number" || !Number.isFinite(durationSeconds) || durationSeconds < 0 || durationSeconds > 120 ||
+        typeof routesCompleted !== "number" || !Number.isInteger(routesCompleted) || routesCompleted < 0 ||
+        typeof perfectRoutes !== "number" || !Number.isInteger(perfectRoutes) || perfectRoutes < 0 ||
+        typeof maxMultiplier !== "number" || !Number.isInteger(maxMultiplier) || maxMultiplier < 1 || maxMultiplier > 10 ||
+        typeof overloads !== "number" || !Number.isInteger(overloads) || overloads < 0 || overloads > 3 ||
+        (medal !== "none" && medal !== "bronze" && medal !== "silver" && medal !== "gold")
+      ) {
         return null;
       }
 
@@ -216,8 +300,10 @@ export function validateIncomingMessage(
     }
 
     case "ERROR": {
-      const message = String((raw as Record<string, unknown>).message || "Unknown error");
-      return { type: "ERROR", message };
+      if (typeof obj.message !== "string" || obj.message.length === 0) {
+        return null;
+      }
+      return { type: "ERROR", message: obj.message };
     }
 
     default:
@@ -227,23 +313,34 @@ export function validateIncomingMessage(
 
 export function sendPostMessageToGodot(
   contentWindow: Window | null,
-  message: PulseLoomOutboundMessage
+  message: PulseLoomOutboundMessage,
+  targetOrigin?: string
 ): void {
   if (!contentWindow) return;
-  const targetOrigin = typeof window !== "undefined" && window.location?.origin && window.location.origin !== "null"
-    ? window.location.origin
-    : "*";
-  contentWindow.postMessage(message, targetOrigin);
+  const origin =
+    targetOrigin ||
+    (typeof window !== "undefined" && window.location?.origin && window.location.origin !== "null"
+      ? window.location.origin
+      : "");
+  if (!origin || origin === "*" || origin === "null") {
+    throw new Error("Refusing to postMessage: exact non-wildcard target origin is required");
+  }
+  contentWindow.postMessage(message, origin);
 }
 
 export interface PulseLoomHostBridgeOptions {
-  muted: boolean;
-  reducedMotion: boolean;
+  muted?: boolean;
+  reducedMotion?: boolean;
   onExit: (reason: "player" | "completed" | "error") => void;
   onScoreClaimAccepted?: (claim: ScoreClaim, result: { accepted: boolean; rank?: number }) => void;
 }
 
-export function createPulseLoomHost(options: PulseLoomHostBridgeOptions): GameHost {
+export interface PulseLoomHost extends GameHost {
+  updateSettings(partial: { muted?: boolean; reducedMotion?: boolean }): void;
+  getActiveTicket(): RunTicket | null;
+}
+
+export function createPulseLoomHost(options: PulseLoomHostBridgeOptions): PulseLoomHost {
   const player: PlayerIdentity = {
     id: "guest-player",
     displayName: "Conduit Operator",
@@ -256,10 +353,10 @@ export function createPulseLoomHost(options: PulseLoomHostBridgeOptions): GameHo
       master: 1.0,
       music: 1.0,
       effects: 1.0,
-      muted: options.muted,
+      muted: options.muted ?? false,
     },
     accessibility: {
-      reducedMotion: options.reducedMotion,
+      reducedMotion: options.reducedMotion ?? false,
       highContrast: false,
       haptics: false,
     },
@@ -275,6 +372,19 @@ export function createPulseLoomHost(options: PulseLoomHostBridgeOptions): GameHo
     sdkVersion: SDK_VERSION,
     player,
     settings,
+
+    updateSettings(partial: { muted?: boolean; reducedMotion?: boolean }): void {
+      if (partial.muted !== undefined) {
+        settings.audio.muted = partial.muted;
+      }
+      if (partial.reducedMotion !== undefined) {
+        settings.accessibility.reducedMotion = partial.reducedMotion;
+      }
+    },
+
+    getActiveTicket(): RunTicket | null {
+      return currentTicket;
+    },
 
     async requestRun(): Promise<RunTicket> {
       currentTicket = createPulseLoomRunTicket();
@@ -339,3 +449,4 @@ export function createPulseLoomHost(options: PulseLoomHostBridgeOptions): GameHo
     },
   };
 }
+

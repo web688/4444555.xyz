@@ -80,11 +80,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		rotate_core_right()
 	elif event.is_action_pressed("pause"):
 		toggle_pause()
-	elif event.is_action_pressed("confirm"):
-		if current_state == State.READY:
-			start_run()
-		elif current_state == State.ENDED:
-			reset_ready()
 
 func rotate_core_left() -> void:
 	_ensure_nodes()
@@ -108,10 +103,35 @@ func toggle_pause() -> void:
 	elif current_state == State.PAUSED:
 		resume_game()
 
+func is_valid_ticket(ticket: Dictionary) -> bool:
+	if ticket.is_empty():
+		return false
+	var t_id := str(ticket.get("id", ""))
+	if t_id.is_empty() or not t_id.begins_with("run-pl-"):
+		return false
+	if str(ticket.get("gameId", "")) != "pulse-loom":
+		return false
+	if str(ticket.get("gameVersion", "")) != "0.1.0":
+		return false
+	if str(ticket.get("ruleset", "")) != "conduit-v1":
+		return false
+	if str(ticket.get("signature", "")) != "local-unverified":
+		return false
+	if not ticket.has("expiresAt"):
+		return false
+	var expires_str := str(ticket.get("expiresAt", ""))
+	var expires_unix := Time.get_unix_time_from_datetime_string(expires_str)
+	if expires_unix <= 0 or expires_unix <= Time.get_unix_time_from_system():
+		return false
+	return true
+
 func start_run(ticket: Dictionary = {}) -> void:
 	_ensure_nodes()
-	ticket_id = ticket.get("id", "ticket-" + str(Time.get_unix_time_from_system()))
-	var raw_seed = ticket.get("seed", 1337)
+	if not is_valid_ticket(ticket):
+		push_error("[Pulse Loom] Refusing start_run: missing, invalid, or expired RunTicket.")
+		return
+	ticket_id = str(ticket.get("id", ""))
+	var raw_seed = ticket.get("seed", "1337")
 	if typeof(raw_seed) == TYPE_STRING:
 		seed_val = hash(raw_seed)
 	else:

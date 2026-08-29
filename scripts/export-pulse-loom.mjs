@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, statSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -7,7 +7,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = resolve(__dirname, "..");
 const projectDir = resolve(rootDir, "games/pulse-loom");
 const outDir = resolve(rootDir, "apps/portal/public/games/pulse-loom");
-const outHtml = resolve(outDir, "index.html");
 
 function findGodotExecutable() {
   if (process.env.GODOT_BIN && existsSync(process.env.GODOT_BIN)) {
@@ -30,14 +29,22 @@ export function exportPulseLoom() {
   console.log("[Pulse Loom] Exporting Godot project to web...");
   mkdirSync(outDir, { recursive: true });
 
+  const requiredFiles = ["index.html", "index.js", "index.wasm", "index.pck"];
+  const checkAllArtifacts = () => {
+    return requiredFiles.every((file) => {
+      const p = resolve(outDir, file);
+      return existsSync(p) && statSync(p).size > 0;
+    });
+  };
+
   const godot = findGodotExecutable();
   if (!godot) {
-    if (existsSync(outHtml) && existsSync(resolve(outDir, "index.wasm"))) {
-      console.warn("[Pulse Loom] Godot executable not found, but pre-existing web export found in public/games/pulse-loom.");
+    if (checkAllArtifacts()) {
+      console.warn("[Pulse Loom] Godot executable not found, but all 4 pre-existing web export artifacts (index.html, index.js, index.wasm, index.pck) found in public/games/pulse-loom.");
       return;
     }
     throw new Error(
-      "Godot executable not found on PATH or GODOT_BIN. Please install Godot 4.6.3 with Web export templates."
+      "Godot executable not found on PATH or GODOT_BIN and complete Web export artifacts (index.html, index.js, index.wasm, index.pck) are not present."
     );
   }
 
@@ -59,10 +66,10 @@ export function exportPulseLoom() {
     throw new Error(`Godot Web export failed with exit code ${result.status}`);
   }
 
-  const requiredFiles = ["index.html", "index.js", "index.wasm", "index.pck"];
   for (const file of requiredFiles) {
-    if (!existsSync(resolve(outDir, file))) {
-      throw new Error(`Godot Web export completed, but expected output file '${file}' is missing from ${outDir}.`);
+    const filePath = resolve(outDir, file);
+    if (!existsSync(filePath) || statSync(filePath).size === 0) {
+      throw new Error(`Godot Web export completed, but expected output file '${file}' is missing or empty in ${outDir}.`);
     }
   }
 

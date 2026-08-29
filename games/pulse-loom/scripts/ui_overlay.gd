@@ -47,11 +47,7 @@ func _handle_touch_tap(pos: Vector2) -> void:
 	if not gm:
 		return
 	var vp_size := get_viewport_rect().size
-	if current_state == "ready":
-		gm.start_run()
-		return
-	elif current_state == "ended":
-		gm.reset_ready()
+	if current_state != "running":
 		return
 	
 	if pos.x < vp_size.x * 0.5:
@@ -99,7 +95,7 @@ func _draw() -> void:
 		draw_string(font, Vector2(rect.position.x, rect.position.y + 40), "PULSE LOOM", HORIZONTAL_ALIGNMENT_CENTER, int(box_w), 24, Color.WHITE)
 		draw_string(font, Vector2(rect.position.x, rect.position.y + 70), "Rotate the core conduit (A/D or ◄/►) to route pulses to matching glyphs", HORIZONTAL_ALIGNMENT_CENTER, int(box_w), 13, Color(0.8, 0.9, 1.0, 0.8))
 		draw_string(font, Vector2(rect.position.x, rect.position.y + 95), "3 Overloads trigger core failure · 90s score attack", HORIZONTAL_ALIGNMENT_CENTER, int(box_w), 13, Color(1.0, 0.7, 0.3, 0.8))
-		draw_string(font, Vector2(rect.position.x, rect.position.y + 145), "PRESS SPACE OR TAP TO INITIALIZE RUN", HORIZONTAL_ALIGNMENT_CENTER, int(box_w), 15, Color(0.0, 0.94, 1.0, 0.95))
+		draw_string(font, Vector2(rect.position.x, rect.position.y + 145), "USE PORTAL LAUNCH CONTROLS TO INITIALIZE RUN", HORIZONTAL_ALIGNMENT_CENTER, int(box_w), 15, Color(0.0, 0.94, 1.0, 0.95))
 	
 	elif current_state == "paused":
 		var box_w: float = 360.0
@@ -127,4 +123,4 @@ func _draw() -> void:
 		draw_string(font, Vector2(rect.position.x, rect.position.y + 80), "FINAL SCORE: %s" % str(latest_result.get("score", 0)), HORIZONTAL_ALIGNMENT_CENTER, int(box_w), 26, Color.WHITE)
 		draw_string(font, Vector2(rect.position.x, rect.position.y + 115), "MEDAL: %s · MAX MULTIPLIER: ×%s" % [medal_str, str(latest_result.get("maxMultiplier", 1))], HORIZONTAL_ALIGNMENT_CENTER, int(box_w), 14, Color(0.8, 0.9, 1.0, 0.9))
 		draw_string(font, Vector2(rect.position.x, rect.position.y + 140), "ROUTES: %s · PERFECT: %s" % [str(latest_result.get("routesCompleted", 0)), str(latest_result.get("perfectRoutes", 0))], HORIZONTAL_ALIGNMENT_CENTER, int(box_w), 13, Color(0.6, 0.75, 0.9, 0.8))
-		draw_string(font, Vector2(rect.position.x, rect.position.y + 185), "PRESS SPACE OR TAP TO RETRY", HORIZONTAL_ALIGNMENT_CENTER, int(box_w), 15, Color(0.0, 0.94, 1.0, 0.95))
+		draw_string(font, Vector2(rect.position.x, rect.position.y + 185), "USE PORTAL CONTROLS TO LAUNCH NEXT TRANSMISSION", HORIZONTAL_ALIGNMENT_CENTER, int(box_w), 15, Color(0.0, 0.94, 1.0, 0.95))

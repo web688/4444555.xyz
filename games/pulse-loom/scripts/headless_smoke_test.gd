@@ -28,6 +28,12 @@ func _init() -> void:
 	else:
 		print("[PASS] test_deterministic_prng")
 	
+	if not test_ticket_validation():
+		push_error("[FAIL] test_ticket_validation")
+		success = false
+	else:
+		print("[PASS] test_ticket_validation")
+	
 	if not test_routing_and_multiplier():
 		push_error("[FAIL] test_routing_and_multiplier")
 		success = false
@@ -52,6 +58,86 @@ func _init() -> void:
 	else:
 		print("=== PULSE LOOM SMOKE TESTS FAILED ===")
 		quit(1)
+
+func get_valid_test_ticket(seed_str: String = "1337") -> Dictionary:
+	return {
+		"id": "run-pl-headless-smoke-001",
+		"gameId": "pulse-loom",
+		"gameVersion": "0.1.0",
+		"ruleset": "conduit-v1",
+		"signature": "local-unverified",
+		"expiresAt": "2035-01-01T00:00:00Z",
+		"seed": seed_str
+	}
+
+func test_ticket_validation() -> bool:
+	var main_scene = load("res://scenes/main.tscn")
+	var root: Node2D = main_scene.instantiate()
+	
+	# 1. Empty ticket should fail
+	if root.is_valid_ticket({}):
+		root.free()
+		return false
+	root.start_run({})
+	if root.current_state != GameManager.State.READY:
+		root.free()
+		return false
+	
+	# 2. Missing/wrong prefix ID should fail
+	var bad_id := get_valid_test_ticket()
+	bad_id["id"] = "bad-id-123"
+	if root.is_valid_ticket(bad_id):
+		root.free()
+		return false
+	
+	# 3. Wrong gameId should fail
+	var bad_game := get_valid_test_ticket()
+	bad_game["gameId"] = "other-game"
+	if root.is_valid_ticket(bad_game):
+		root.free()
+		return false
+	
+	# 4. Wrong gameVersion should fail
+	var bad_ver := get_valid_test_ticket()
+	bad_ver["gameVersion"] = "0.2.0"
+	if root.is_valid_ticket(bad_ver):
+		root.free()
+		return false
+	
+	# 5. Wrong ruleset should fail
+	var bad_rules := get_valid_test_ticket()
+	bad_rules["ruleset"] = "wrong-ruleset"
+	if root.is_valid_ticket(bad_rules):
+		root.free()
+		return false
+	
+	# 6. Wrong signature should fail
+	var bad_sig := get_valid_test_ticket()
+	bad_sig["signature"] = "fake-sig"
+	if root.is_valid_ticket(bad_sig):
+		root.free()
+		return false
+	
+	# 7. Expired timestamp should fail
+	var expired := get_valid_test_ticket()
+	expired["expiresAt"] = "2020-01-01T00:00:00Z"
+	if root.is_valid_ticket(expired):
+		root.free()
+		return false
+	
+	# 8. Valid ticket should pass and start_run transitions to RUNNING
+	var valid := get_valid_test_ticket()
+	if not root.is_valid_ticket(valid):
+		root.free()
+		return false
+	
+	root.start_run(valid)
+	if root.current_state != GameManager.State.RUNNING:
+		root.free()
+		return false
+	
+	root.free()
+	return true
 
 func test_constants() -> bool:
 	if PulseLoomConstants.NUM_LANES != 6:
@@ -143,7 +229,7 @@ func test_routing_and_multiplier() -> bool:
 func test_overload_failure() -> bool:
 	var main_scene = load("res://scenes/main.tscn")
 	var root: Node2D = main_scene.instantiate()
-	root.start_run({"id": "test-overload", "seed": 999})
+	root.start_run(get_valid_test_ticket("999"))
 	
 	# Simulate 3 misroutes
 	for miss in range(3):
@@ -168,7 +254,7 @@ func test_overload_failure() -> bool:
 func test_full_90s_simulation() -> bool:
 	var main_scene = load("res://scenes/main.tscn")
 	var root: Node2D = main_scene.instantiate()
-	root.start_run({"id": "test-90s", "seed": 2026})
+	root.start_run(get_valid_test_ticket("2026"))
 	
 	var dt: float = 0.05
 	var sim_time: float = 0.0

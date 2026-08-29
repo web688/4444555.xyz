@@ -9,9 +9,11 @@ import {
   createEmptyPulseLoomProgress,
 } from "../apps/portal/src/games/pulse-loom/progress.ts";
 import {
+  createPulseLoomHost,
   createPulseLoomRunTicket,
   validateScoreClaim,
   validateIncomingMessage,
+  sendPostMessageToGodot,
 } from "../apps/portal/src/games/pulse-loom/host.ts";
 
 test("Pulse Loom manifest metadata is valid and aligned with SDK contract", async () => {
@@ -62,15 +64,69 @@ test("Pulse Loom progress calculation and medal thresholds behave correctly", ()
   assert.deepEqual(empty.recentRuns, []);
 });
 
-test("Pulse Loom SDK host boundary, run ticket, and score claim validation behave correctly", () => {
+test("Pulse Loom GameHost maintains stable lifecycle and active ticket across settings updates", async () => {
+  let exitReason = "";
+  let acceptedClaim = null;
+  const host = createPulseLoomHost({
+    muted: false,
+    reducedMotion: false,
+    onExit: (reason) => {
+      exitReason = reason;
+    },
+    onScoreClaimAccepted: (claim) => {
+      acceptedClaim = claim;
+    },
+  });
+
+  assert.equal(host.settings.audio.muted, false);
+  assert.equal(host.settings.accessibility.reducedMotion, false);
+
+  // Request run ticket
+  const ticket = await host.requestRun();
+  assert.ok(ticket.id.startsWith("run-pl-"));
+  assert.equal(host.getActiveTicket()?.id, ticket.id);
+
+  // Update settings (mute toggle, reduced motion toggle)
+  host.updateSettings({ muted: true, reducedMotion: true });
+  assert.equal(host.settings.audio.muted, true);
+  assert.equal(host.settings.accessibility.reducedMotion, true);
+
+  // Ticket must still remain active and unmodified
+  assert.equal(host.getActiveTicket()?.id, ticket.id);
+
+  // Submit score claim using active ticket
+  const claim = {
+    runTicketId: ticket.id,
+    score: 55000,
+    durationMs: 90000,
+    endedAt: new Date().toISOString(),
+    stats: {
+      routesCompleted: 30,
+      perfectRoutes: 20,
+      maxMultiplier: 8,
+      overloads: 1,
+      completed: 1,
+    },
+  };
+
+  const res = await host.submitScore(claim);
+  assert.equal(res.accepted, true);
+  assert.ok(acceptedClaim);
+  assert.equal(acceptedClaim.runTicketId, ticket.id);
+
+  host.exit("player");
+  assert.equal(exitReason, "player");
+});
+
+test("Pulse Loom SDK RunTicket schema and ScoreClaim validation enforce contract end-to-end", () => {
   // Test run ticket creation
   const ticket = createPulseLoomRunTicket(2026);
   assert.equal(ticket.gameId, "pulse-loom");
   assert.equal(ticket.gameVersion, "0.1.0");
   assert.equal(ticket.ruleset, "conduit-v1");
   assert.equal(ticket.seed, "2026");
+  assert.equal(ticket.signature, "local-unverified");
   assert.ok(ticket.id.startsWith("run-pl-"));
-  assert.ok(ticket.signature.startsWith("sig_pl_"));
   assert.ok(new Date(ticket.issuedAt).getTime() > 0);
   assert.ok(new Date(ticket.expiresAt).getTime() > new Date(ticket.issuedAt).getTime());
 
@@ -91,51 +147,239 @@ test("Pulse Loom SDK host boundary, run ticket, and score claim validation behav
   const validResult = validateScoreClaim(ticket, validClaim);
   assert.equal(validResult.valid, true);
 
+  // Test expired ticket rejection
+  const expiredTicket = {
+    ...ticket,
+    expiresAt: new Date(Date.now() - 5000).toISOString(),
+  };
+  assert.equal(validateScoreClaim(expiredTicket, validClaim).valid, false);
+
+  // Test claim ended after ticket expiry rejection
+  const lateClaim = {
+    ...validClaim,
+    endedAt: new Date(Date.now() + 600_000).toISOString(),
+  };
+  assert.equal(validateScoreClaim(ticket, lateClaim).valid, false);
+
   // Test invalid score claims (ticket mismatch, negative score, non-integer score, overloads > 3, duration > 120s)
   assert.equal(validateScoreClaim(ticket, { ...validClaim, runTicketId: "wrong-id" }).valid, false);
   assert.equal(validateScoreClaim(ticket, { ...validClaim, score: -500 }).valid, false);
   assert.equal(validateScoreClaim(ticket, { ...validClaim, score: 123.45 }).valid, false);
   assert.equal(validateScoreClaim(ticket, { ...validClaim, durationMs: 150_000 }).valid, false);
   assert.equal(validateScoreClaim(ticket, { ...validClaim, stats: { ...validClaim.stats, overloads: 4 } }).valid, false);
+  assert.equal(validateScoreClaim(ticket, { ...validClaim, stats: { ...validClaim.stats, maxMultiplier: 15 } }).valid, false);
+});
 
-  // Test incoming message parser and validator
-  const mockWindow = {};
-  const gameReadyEvent = {
-    source: mockWindow,
-    origin: "http://localhost:5173",
-    data: { type: "GAME_READY", game: "pulse-loom", version: "0.1.0", sdk: "0.1.0", engine: "Godot 4.6.3" },
-  };
-  const parsedReady = validateIncomingMessage(gameReadyEvent, mockWindow);
-  assert.ok(parsedReady);
-  assert.equal(parsedReady?.type, "GAME_READY");
-
-  const telemetryEvent = {
-    source: mockWindow,
-    origin: "http://localhost:5173",
-    data: {
-      type: "TELEMETRY",
-      data: {
-        score: 1500,
-        multiplier: 3,
-        maxMultiplier: 3,
-        overloads: 0,
-        maxOverloads: 3,
-        timeRemaining: 82.5,
-        stage: 1,
-        routesCompleted: 4,
-        perfectRoutes: 2,
-        fps: 60,
-      },
+test("Pulse Loom postMessage communication enforces exact same-origin and forbids wildcard", () => {
+  const mockContentWindow = {
+    postMessage(msg, targetOrigin) {
+      this.lastMsg = msg;
+      this.lastOrigin = targetOrigin;
     },
   };
-  const parsedTelemetry = validateIncomingMessage(telemetryEvent, mockWindow);
-  assert.ok(parsedTelemetry);
-  assert.equal(parsedTelemetry?.type, "TELEMETRY");
 
-  // Rejects invalid source window or unknown payload
-  assert.equal(validateIncomingMessage(gameReadyEvent, {}), null);
+  // Successful send with valid target origin
+  sendPostMessageToGodot(mockContentWindow, { type: "RESUME" }, "http://localhost:5173");
+  assert.equal(mockContentWindow.lastOrigin, "http://localhost:5173");
+  assert.deepEqual(mockContentWindow.lastMsg, { type: "RESUME" });
+
+  // Forbids wildcard '*' origin
+  assert.throws(() => {
+    sendPostMessageToGodot(mockContentWindow, { type: "RESUME" }, "*");
+  }, /exact non-wildcard target origin/);
+
+  // Forbids empty origin
+  assert.throws(() => {
+    sendPostMessageToGodot(mockContentWindow, { type: "RESUME" }, "");
+  }, /exact non-wildcard target origin/);
+
+  // Forbids 'null' origin
+  assert.throws(() => {
+    sendPostMessageToGodot(mockContentWindow, { type: "RESUME" }, "null");
+  }, /exact non-wildcard target origin/);
+});
+
+test("Pulse Loom incoming message validation enforces exact origin and rejects cross-origin/opaque messages", () => {
+  const mockWindow = {};
+  const validOrigin = "http://localhost:5173";
+
+  const validReadyEvent = {
+    source: mockWindow,
+    origin: validOrigin,
+    data: { type: "GAME_READY", game: "pulse-loom", version: "0.1.0", sdk: "0.1.0", engine: "Godot 4.6.3" },
+  };
+
+  // Valid origin and window -> PASS
+  const parsed = validateIncomingMessage(validReadyEvent, mockWindow, validOrigin);
+  assert.ok(parsed);
+  assert.equal(parsed?.type, "GAME_READY");
+
+  // Origin mismatch -> REJECT (null)
   assert.equal(
-    validateIncomingMessage({ source: mockWindow, origin: "http://localhost:5173", data: { type: "UNKNOWN" } }, mockWindow),
+    validateIncomingMessage(validReadyEvent, mockWindow, "https://evil.com"),
+    null
+  );
+  assert.equal(
+    validateIncomingMessage({ ...validReadyEvent, origin: "https://evil.com" }, mockWindow, validOrigin),
+    null
+  );
+
+  // Missing, null, 'null', or '*' origin -> REJECT
+  assert.equal(validateIncomingMessage({ ...validReadyEvent, origin: "" }, mockWindow, validOrigin), null);
+  assert.equal(validateIncomingMessage({ ...validReadyEvent, origin: "null" }, mockWindow, validOrigin), null);
+  assert.equal(validateIncomingMessage({ ...validReadyEvent, origin: "*" }, mockWindow, validOrigin), null);
+
+  // Source window mismatch -> REJECT
+  const otherWindow = {};
+  assert.equal(validateIncomingMessage(validReadyEvent, otherWindow, validOrigin), null);
+});
+
+test("Pulse Loom strictly validates payload schemas and rejects malformed payloads without coercion", () => {
+  const mockWindow = {};
+  const origin = "http://localhost:5173";
+
+  // Arrays must be rejected
+  assert.equal(
+    validateIncomingMessage({ source: mockWindow, origin, data: ["malicious", "array"] }, mockWindow, origin),
+    null
+  );
+
+  // Wrong GAME_READY parameters
+  assert.equal(
+    validateIncomingMessage(
+      { source: mockWindow, origin, data: { type: "GAME_READY", game: "other", version: "0.1.0", sdk: "0.1.0" } },
+      mockWindow,
+      origin
+    ),
+    null
+  );
+  assert.equal(
+    validateIncomingMessage(
+      { source: mockWindow, origin, data: { type: "GAME_READY", game: "pulse-loom", version: "0.2.0", sdk: "0.1.0" } },
+      mockWindow,
+      origin
+    ),
+    null
+  );
+  assert.equal(
+    validateIncomingMessage(
+      { source: mockWindow, origin, data: { type: "GAME_READY", game: "pulse-loom", version: "0.1.0", sdk: "0.2.0" } },
+      mockWindow,
+      origin
+    ),
+    null
+  );
+
+  // Invalid STATE_CHANGE
+  assert.equal(
+    validateIncomingMessage(
+      { source: mockWindow, origin, data: { type: "STATE_CHANGE", state: "invalid_state" } },
+      mockWindow,
+      origin
+    ),
+    null
+  );
+
+  // Valid TELEMETRY
+  const validTelemetry = {
+    type: "TELEMETRY",
+    data: {
+      score: 1500,
+      multiplier: 3,
+      maxMultiplier: 3,
+      overloads: 1,
+      maxOverloads: 3,
+      timeRemaining: 82.5,
+      stage: 1,
+      routesCompleted: 4,
+      perfectRoutes: 2,
+      fps: 60,
+    },
+  };
+  assert.ok(
+    validateIncomingMessage({ source: mockWindow, origin, data: validTelemetry }, mockWindow, origin)
+  );
+
+  // Malformed TELEMETRY (string numbers, negative, overloads > 3, invalid stage)
+  assert.equal(
+    validateIncomingMessage(
+      { source: mockWindow, origin, data: { type: "TELEMETRY", data: { ...validTelemetry.data, score: "1500" } } },
+      mockWindow,
+      origin
+    ),
+    null
+  );
+  assert.equal(
+    validateIncomingMessage(
+      { source: mockWindow, origin, data: { type: "TELEMETRY", data: { ...validTelemetry.data, overloads: 4 } } },
+      mockWindow,
+      origin
+    ),
+    null
+  );
+  assert.equal(
+    validateIncomingMessage(
+      { source: mockWindow, origin, data: { type: "TELEMETRY", data: { ...validTelemetry.data, stage: 5 } } },
+      mockWindow,
+      origin
+    ),
+    null
+  );
+
+  // Valid RUN_ENDED
+  const validRunEnded = {
+    type: "RUN_ENDED",
+    data: {
+      ticketId: "run-pl-12345-abcde",
+      outcome: "complete",
+      score: 45000,
+      durationSeconds: 90,
+      routesCompleted: 20,
+      perfectRoutes: 10,
+      maxMultiplier: 6,
+      overloads: 0,
+      medal: "silver",
+    },
+  };
+  const parsedRunEnded = validateIncomingMessage(
+    { source: mockWindow, origin, data: validRunEnded },
+    mockWindow,
+    origin
+  );
+  assert.ok(parsedRunEnded);
+  assert.equal(parsedRunEnded?.type, "RUN_ENDED");
+
+  // Malformed RUN_ENDED (bad ticketId prefix, bad outcome, non-integer score, bad medal)
+  assert.equal(
+    validateIncomingMessage(
+      { source: mockWindow, origin, data: { type: "RUN_ENDED", data: { ...validRunEnded.data, ticketId: "bad-ticket" } } },
+      mockWindow,
+      origin
+    ),
+    null
+  );
+  assert.equal(
+    validateIncomingMessage(
+      { source: mockWindow, origin, data: { type: "RUN_ENDED", data: { ...validRunEnded.data, outcome: "unknown" } } },
+      mockWindow,
+      origin
+    ),
+    null
+  );
+  assert.equal(
+    validateIncomingMessage(
+      { source: mockWindow, origin, data: { type: "RUN_ENDED", data: { ...validRunEnded.data, score: 45000.5 } } },
+      mockWindow,
+      origin
+    ),
+    null
+  );
+  assert.equal(
+    validateIncomingMessage(
+      { source: mockWindow, origin, data: { type: "RUN_ENDED", data: { ...validRunEnded.data, medal: "platinum" } } },
+      mockWindow,
+      origin
+    ),
     null
   );
 });

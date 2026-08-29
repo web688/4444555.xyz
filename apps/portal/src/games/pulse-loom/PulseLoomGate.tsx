@@ -5,6 +5,7 @@ import {
   sendPostMessageToGodot,
   validateIncomingMessage,
   type PulseLoomTelemetryData,
+  type PulseLoomHost,
 } from "./host";
 import type { RunTicket, ScoreClaim, GameHost } from "@4444555/game-sdk";
 import "./pulse-loom.css";
@@ -30,32 +31,46 @@ export default function PulseLoomGate({ onExit }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const activeTicketRef = useRef<RunTicket | null>(null);
   const savedRunRef = useRef("");
-  const hostRef = useRef<GameHost | null>(null);
+  const onExitRef = useRef(onExit);
+  useEffect(() => {
+    onExitRef.current = onExit;
+  }, [onExit]);
 
   const [telemetry, setTelemetry] = useState<PulseLoomTelemetryData>(initialTelemetry);
   const [gameState, setGameState] = useState<"ready" | "running" | "paused" | "ended">("ready");
+  const gameStateRef = useRef(gameState);
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
+
   const [outcome, setOutcome] = useState<RecordedOutcome | null>(null);
   const [engineReady, setEngineReady] = useState(false);
   const [muted, setMuted] = useState(false);
+  const mutedRef = useRef(muted);
+  useEffect(() => {
+    mutedRef.current = muted;
+  }, [muted]);
+
   const [error, setError] = useState<string | null>(null);
+
+  const hostRef = useRef<PulseLoomHost | null>(null);
+  if (!hostRef.current) {
+    const reducedMotion = typeof window !== "undefined"
+      ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      : false;
+
+    hostRef.current = createPulseLoomHost({
+      muted: false,
+      reducedMotion,
+      onExit: (_reason) => onExitRef.current(),
+    });
+  }
 
   const iframeSrc = useMemo(() => {
     const base = import.meta.env.BASE_URL || "/";
     const normalizedBase = base.endsWith("/") ? base : `${base}/`;
     return `${normalizedBase}games/pulse-loom/index.html`;
   }, []);
-
-  useEffect(() => {
-    const reducedMotion = typeof window !== "undefined"
-      ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
-      : false;
-
-    hostRef.current = createPulseLoomHost({
-      muted,
-      reducedMotion,
-      onExit: (_reason) => onExit(),
-    });
-  }, [muted, onExit]);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -84,7 +99,7 @@ export default function PulseLoomGate({ onExit }: Props) {
           sendPostMessageToGodot(iframeRef.current?.contentWindow ?? null, {
             type: "INIT",
             sdkVersion: "0.1.0",
-            settings: { muted, reducedMotion },
+            settings: { muted: mutedRef.current, reducedMotion },
           });
           break;
         }
@@ -101,14 +116,20 @@ export default function PulseLoomGate({ onExit }: Props) {
 
         case "RUN_ENDED": {
           const result = msg.data;
+          const currentTicket = activeTicketRef.current;
+          if (!currentTicket || result.ticketId !== currentTicket.id) {
+            console.error(`[Pulse Loom Gate] Rejected RUN_ENDED: ticketId mismatch or no active ticket. Expected ${currentTicket?.id}, got ${result.ticketId}`);
+            setError(`Run rejected: ticket ID mismatch (${result.ticketId})`);
+            break;
+          }
+
           setGameState("ended");
           const runKey = `${result.ticketId}:${result.score}:${result.outcome}`;
           if (savedRunRef.current !== runKey) {
             savedRunRef.current = runKey;
 
-            const ticket = activeTicketRef.current;
             const claim: ScoreClaim = {
-              runTicketId: ticket ? ticket.id : result.ticketId,
+              runTicketId: result.ticketId,
               score: result.score,
               durationMs: result.durationSeconds * 1000,
               endedAt: new Date().toISOString(),
@@ -137,6 +158,8 @@ export default function PulseLoomGate({ onExit }: Props) {
                   } catch {
                     // Ignore storage reading errors
                   }
+                } else {
+                  setError(`Score submission rejected: ${submitRes.reason ?? "invalid claim"}`);
                 }
               });
             }
@@ -154,17 +177,31 @@ export default function PulseLoomGate({ onExit }: Props) {
     window.addEventListener("message", onMessage);
 
     const onEscape = (event: KeyboardEvent) => {
-      if (event.code === "Escape") onExit();
+      if (event.code === "Escape") onExitRef.current();
     };
     window.addEventListener("keydown", onEscape);
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        if (gameStateRef.current === "running") {
+          sendPostMessageToGodot(iframeRef.current?.contentWindow ?? null, {
+            type: "PAUSE",
+            reason: "visibility",
+          });
+          setGameState("paused");
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
       clearTimeout(initTimer);
       window.removeEventListener("message", onMessage);
       window.removeEventListener("keydown", onEscape);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       document.body.style.overflow = previousOverflow;
     };
-  }, [muted, onExit]);
+  }, []);
 
   const togglePause = () => {
     if (gameState === "paused") {
@@ -179,7 +216,10 @@ export default function PulseLoomGate({ onExit }: Props) {
   const toggleMute = () => {
     const nextMuted = !muted;
     setMuted(nextMuted);
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    hostRef.current?.updateSettings({ muted: nextMuted });
+    const reducedMotion = typeof window !== "undefined"
+      ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      : false;
     sendPostMessageToGodot(iframeRef.current?.contentWindow ?? null, {
       type: "SET_SETTINGS",
       settings: {
