@@ -60,11 +60,10 @@ export function getPulseLoomDailySeed(date = new Date()): string {
   ].join("-");
 }
 
-export function createPulseLoomRunTicket(seed?: number | string): RunTicket {
-  const now = new Date();
+export function createPulseLoomRunTicket(seed?: number | string, now = new Date()): RunTicket {
   const expires = new Date(now.getTime() + 5 * 60 * 1000);
   const seedString = seed !== undefined ? String(seed) : getPulseLoomDailySeed(now);
-  const id = `run-pl-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const id = `run-pl-${now.getTime().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   return {
     id,
     gameId: "pulse-loom",

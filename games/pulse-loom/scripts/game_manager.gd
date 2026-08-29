@@ -104,31 +104,67 @@ func toggle_pause() -> void:
 		resume_game()
 
 static func parse_iso_datetime(iso_str: String) -> float:
-	if iso_str.is_empty():
+	# Host emits JavaScript Date.toISOString(): YYYY-MM-DDTHH:mm:ss.sssZ (exact 24 chars)
+	if iso_str.length() != 24:
 		return -1.0
-	var clean := iso_str.strip_edges()
-	if clean.ends_with("Z") or clean.ends_with("z"):
-		clean = clean.substr(0, clean.length() - 1)
-	var millis := 0.0
-	var dot_idx := clean.find(".")
-	if dot_idx != -1:
-		var frac_str := clean.substr(dot_idx)
-		clean = clean.substr(0, dot_idx)
-		if frac_str.length() <= 1:
+	
+	# Strict separator check
+	if iso_str[4] != "-" or iso_str[7] != "-" or iso_str[10] != "T" or iso_str[13] != ":" or iso_str[16] != ":" or iso_str[19] != "." or iso_str[23] != "Z":
+		return -1.0
+	
+	# Strict ASCII digit check for all number positions
+	const DIGIT_INDICES := [0, 1, 2, 3, 5, 6, 8, 9, 11, 12, 14, 15, 17, 18, 20, 21, 22]
+	for idx in DIGIT_INDICES:
+		var code: int = iso_str.unicode_at(idx)
+		if code < 48 or code > 57:
 			return -1.0
-		var frac_digits := frac_str.substr(1)
-		if not frac_digits.is_valid_int():
-			return -1.0
-		millis = frac_str.to_float()
-	var dt_dict := Time.get_datetime_dict_from_datetime_string(clean, false)
-	if dt_dict.is_empty():
+	
+	var year := int(iso_str.substr(0, 4))
+	var month := int(iso_str.substr(5, 2))
+	var day := int(iso_str.substr(8, 2))
+	var hour := int(iso_str.substr(11, 2))
+	var minute := int(iso_str.substr(14, 2))
+	var second := int(iso_str.substr(17, 2))
+	var millis := int(iso_str.substr(20, 3))
+	
+	if year < 1 or year > 9999:
 		return -1.0
-	if int(dt_dict.get("year", 0)) <= 0 or int(dt_dict.get("month", 0)) <= 0 or int(dt_dict.get("day", 0)) <= 0:
+	if month < 1 or month > 12:
 		return -1.0
+	
+	var is_leap: bool = (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)
+	var max_days := 31
+	match month:
+		1, 3, 5, 7, 8, 10, 12:
+			max_days = 31
+		4, 6, 9, 11:
+			max_days = 30
+		2:
+			max_days = 29 if is_leap else 28
+	
+	if day < 1 or day > max_days:
+		return -1.0
+	if hour < 0 or hour > 23:
+		return -1.0
+	if minute < 0 or minute > 59:
+		return -1.0
+	if second < 0 or second > 59:
+		return -1.0
+	if millis < 0 or millis > 999:
+		return -1.0
+	
+	var dt_dict := {
+		"year": year,
+		"month": month,
+		"day": day,
+		"hour": hour,
+		"minute": minute,
+		"second": second
+	}
 	var base_unix := Time.get_unix_time_from_datetime_dict(dt_dict)
 	if base_unix <= 0:
 		return -1.0
-	return float(base_unix) + millis
+	return float(base_unix) + (float(millis) / 1000.0)
 
 func is_valid_ticket(ticket: Dictionary) -> bool:
 	if ticket.is_empty():

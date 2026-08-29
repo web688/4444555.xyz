@@ -120,14 +120,30 @@ test("Pulse Loom GameHost maintains stable lifecycle and active ticket across se
 });
 
 test("Pulse Loom SDK RunTicket schema and ScoreClaim validation enforce contract end-to-end", () => {
-  // Test deterministic daily seed on default run tickets
+  // Test deterministic daily seed on default run tickets across fixed and live clocks
+  const fixedNow = new Date("2026-08-29T14:30:00.000Z");
+  const ticketA = createPulseLoomRunTicket(undefined, fixedNow);
+  const ticketB = createPulseLoomRunTicket(undefined, fixedNow);
+
+  // Clock-stable proof: same timestamp yields identical daily seed, unique IDs
+  assert.equal(ticketA.seed, "2026-08-29");
+  assert.equal(ticketB.seed, "2026-08-29");
+  assert.equal(ticketA.seed, ticketB.seed);
+  assert.notEqual(ticketA.id, ticketB.id);
+
+  // UTC midnight boundary test: proving daily seed changes deterministically at 00:00:00.000Z
+  const justBeforeMidnight = new Date("2026-08-29T23:59:59.999Z");
+  const atMidnight = new Date("2026-08-30T00:00:00.000Z");
+  const ticketBefore = createPulseLoomRunTicket(undefined, justBeforeMidnight);
+  const ticketAfter = createPulseLoomRunTicket(undefined, atMidnight);
+  assert.equal(ticketBefore.seed, "2026-08-29");
+  assert.equal(ticketAfter.seed, "2026-08-30");
+
+  // Live ticket test: derive expected daily seed directly from ticket.issuedAt (immune to midnight races)
   const defaultTicket1 = createPulseLoomRunTicket();
   const defaultTicket2 = createPulseLoomRunTicket();
-  const expectedDailySeed = getPulseLoomDailySeed();
-
-  assert.equal(defaultTicket1.seed, expectedDailySeed);
-  assert.equal(defaultTicket2.seed, expectedDailySeed);
-  assert.equal(defaultTicket1.seed, defaultTicket2.seed);
+  assert.equal(defaultTicket1.seed, getPulseLoomDailySeed(new Date(defaultTicket1.issuedAt)));
+  assert.equal(defaultTicket2.seed, getPulseLoomDailySeed(new Date(defaultTicket2.issuedAt)));
   assert.notEqual(defaultTicket1.id, defaultTicket2.id);
   assert.ok(defaultTicket1.id.startsWith("run-pl-"));
   assert.ok(defaultTicket2.id.startsWith("run-pl-"));
@@ -138,7 +154,7 @@ test("Pulse Loom SDK RunTicket schema and ScoreClaim validation enforce contract
   assert.ok(new Date(defaultTicket1.issuedAt).getTime() > 0);
   assert.ok(new Date(defaultTicket1.expiresAt).getTime() > new Date(defaultTicket1.issuedAt).getTime());
 
-  // Test explicit custom seed creation
+  // Test explicit custom seed creation (number & string)
   const ticket = createPulseLoomRunTicket(2026);
   assert.equal(ticket.gameId, "pulse-loom");
   assert.equal(ticket.gameVersion, "0.1.0");
@@ -148,6 +164,9 @@ test("Pulse Loom SDK RunTicket schema and ScoreClaim validation enforce contract
   assert.ok(ticket.id.startsWith("run-pl-"));
   assert.ok(new Date(ticket.issuedAt).getTime() > 0);
   assert.ok(new Date(ticket.expiresAt).getTime() > new Date(ticket.issuedAt).getTime());
+
+  const ticketStr = createPulseLoomRunTicket("custom-channel-seed");
+  assert.equal(ticketStr.seed, "custom-channel-seed");
 
   // Test valid score claim
   const validClaim = {

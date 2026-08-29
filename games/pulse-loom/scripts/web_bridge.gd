@@ -45,8 +45,9 @@ func _on_js_message_raw(args: Array) -> void:
 	if args.is_empty():
 		return
 	var raw = args[0]
-	var json_str := str(raw)
-	var parsed = JSON.parse_string(json_str)
+	if typeof(raw) != TYPE_STRING:
+		return
+	var parsed = JSON.parse_string(raw as String)
 	if typeof(parsed) != TYPE_DICTIONARY:
 		return
 	handle_command(parsed)
