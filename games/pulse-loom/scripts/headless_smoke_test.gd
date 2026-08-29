@@ -210,87 +210,64 @@ func test_assisted_onboarding_and_normal_play_transition() -> bool:
 		root.free()
 		return false
 	
-	# Step 0 (Pulse 1): Advance time to spawn pulse
-	root._process(0.35)
-	if root.active_pulses.size() != 1:
-		root.free()
-		return false
-	var p0 = root.active_pulses[0]
-	if p0.source_lane != 0 or p0.target_lane != 2:
-		root.free()
-		return false
-	
-	# Rotate core to align with target 2
-	var req_step_0 := PulseLoomRouting.get_required_step(p0.source_lane, p0.target_lane)
-	root.signal_core.set_step(req_step_0)
-	if not PulseLoomRouting.is_aligned(p0.source_lane, p0.target_lane, root.signal_core.current_step):
-		root.free()
-		return false
-	
-	# Advance pulse to core
-	p0.distance = PulseLoomConstants.CORE_RADIUS
-	root.active_pulses.erase(p0)
-	root._resolve_pulse(p0)
-	p0.free()
-	
-	if root.onboarding_step != 1 or not root.onboarding_active:
-		root.free()
-		return false
-	if root.score < 100:
-		root.free()
-		return false
-	
-	# Step 1 (Pulse 2): Advance time to spawn pulse 2 (Green Square □, src 2, tgt 3)
-	root._process(0.5)
-	if root.active_pulses.size() != 1:
-		root.free()
-		return false
-	var p1 = root.active_pulses[0]
-	if p1.source_lane != 2 or p1.target_lane != 3:
-		root.free()
-		return false
-	
-	var req_step_1 := PulseLoomRouting.get_required_step(p1.source_lane, p1.target_lane)
-	root.signal_core.set_step(req_step_1)
-	if not PulseLoomRouting.is_aligned(p1.source_lane, p1.target_lane, root.signal_core.current_step):
-		root.free()
-		return false
-	
-	p1.distance = PulseLoomConstants.CORE_RADIUS
-	root.active_pulses.erase(p1)
-	root._resolve_pulse(p1)
-	p1.free()
-	
-	if root.onboarding_step != 2 or not root.onboarding_active:
-		root.free()
-		return false
-	
-	# Step 2 (Pulse 3): Advance time to spawn pulse 3 (Crimson Circle ○, src 5, tgt 4)
-	root._process(0.5)
-	if root.active_pulses.size() != 1:
-		root.free()
-		return false
-	var p2 = root.active_pulses[0]
-	if p2.source_lane != 5 or p2.target_lane != 4:
-		root.free()
-		return false
-	
-	var req_step_2 := PulseLoomRouting.get_required_step(p2.source_lane, p2.target_lane)
-	root.signal_core.set_step(req_step_2)
-	if not PulseLoomRouting.is_aligned(p2.source_lane, p2.target_lane, root.signal_core.current_step):
-		root.free()
-		return false
-	
-	p2.distance = PulseLoomConstants.CORE_RADIUS
-	root.active_pulses.erase(p2)
-	root._resolve_pulse(p2)
-	p2.free()
+	# Verify all 3 assisted pulses from runtime specification
+	for step in range(3):
+		var spec := PulseLoomConstants.get_assisted_pulse_spec(step)
+		var expected_src: int = spec["source_lane"]
+		var expected_tgt: int = spec["target_lane"]
+		var expected_spd: float = spec["speed"]
+		
+		# Advance time to trigger spawn
+		root._process(0.45)
+		if root.active_pulses.size() != 1:
+			root.free()
+			return false
+		var p = root.active_pulses[0]
+		if p.source_lane != expected_src or p.target_lane != expected_tgt or not is_equal_approx(p.speed, expected_spd):
+			root.free()
+			return false
+		
+		# Specific target identity checks for Square and Circle guided pulses
+		if step == 1:
+			if p.target_lane != PulseLoomConstants.GlyphType.SQUARE or PulseLoomConstants.GLYPH_NAMES[p.target_lane] != "SQUARE" or PulseLoomConstants.GLYPH_SYMBOLS[p.target_lane] != "□":
+				root.free()
+				return false
+		elif step == 2:
+			if p.target_lane != PulseLoomConstants.GlyphType.CIRCLE or PulseLoomConstants.GLYPH_NAMES[p.target_lane] != "CIRCLE" or PulseLoomConstants.GLYPH_SYMBOLS[p.target_lane] != "○":
+				root.free()
+				return false
+		
+		# Rotate core to align with target
+		var req_step := PulseLoomRouting.get_required_step(p.source_lane, p.target_lane)
+		root.signal_core.set_step(req_step)
+		root._update_preview_state()
+		
+		if not PulseLoomRouting.is_aligned(p.source_lane, p.target_lane, root.signal_core.current_step):
+			root.free()
+			return false
+		if root.signal_core.active_target_lane != p.target_lane or root.radar_lanes.active_target_lane != p.target_lane:
+			root.free()
+			return false
+		
+		# Advance pulse to core and resolve
+		p.distance = PulseLoomConstants.CORE_RADIUS
+		root.active_pulses.erase(p)
+		root._resolve_pulse(p)
+		p.free()
+		
+		var expected_next_step := step + 1
+		if root.onboarding_step != expected_next_step:
+			root.free()
+			return false
+		if step < 2 and not root.onboarding_active:
+			root.free()
+			return false
 	
 	# 2. Verify transition from assisted onboarding to normal score-attack
 	if root.onboarding_active:
 		root.free()
 		return false
-	if root.onboarding_step < 3:
+	if root.onboarding_step != 3:
 		root.free()
 		return false
 	
@@ -315,33 +292,43 @@ func test_repeated_target_and_glyph_agreement() -> bool:
 	root._ready()
 	root.start_run(get_valid_test_ticket("repeated-target-agreement-seed"))
 	
+	# Clean pulses from start
+	root._clear_all_pulses()
+	root._update_preview_state()
+	
 	# Explicitly verify every target glyph (0..5), with strict repeated occurrence verification
 	# Target 3 (Emerald Square □) and Target 4 (Crimson Circle ○) tested repeatedly
 	for target_lane in range(PulseLoomConstants.NUM_LANES):
 		var glyph_name: String = PulseLoomConstants.GLYPH_NAMES[target_lane]
 		var glyph_sym: String = PulseLoomConstants.GLYPH_SYMBOLS[target_lane]
+		var glyph_col: Color = PulseLoomConstants.LANE_COLORS[target_lane]
 		
-		# Specific checks for Square and Circle
+		# Specific explicit checks for Square and Circle
 		if target_lane == PulseLoomConstants.GlyphType.SQUARE:
-			if glyph_name != "SQUARE" or glyph_sym != "□":
+			if glyph_name != "SQUARE" or glyph_sym != "□" or glyph_col != Color(0.0, 1.0, 0.6):
 				root.free()
 				return false
 		elif target_lane == PulseLoomConstants.GlyphType.CIRCLE:
-			if glyph_name != "CIRCLE" or glyph_sym != "○":
+			if glyph_name != "CIRCLE" or glyph_sym != "○" or glyph_col != Color(1.0, 0.20, 0.4):
 				root.free()
 				return false
 		
-		# Test 3 repeated occurrences for each target glyph from various source lanes
+		# Test 3 repeated occurrences for each target glyph from various distinct source lanes
 		for occurrence in range(3):
 			var src_lane := (target_lane + occurrence * 2 + 1) % PulseLoomConstants.NUM_LANES
+			
+			# Ensure prior state did not leave stale target/highlight
+			if root.signal_core.active_target_lane != -1 or root.radar_lanes.active_target_lane != -1:
+				root.free()
+				return false
 			
 			# 1. Create pulse with this target
 			var p := SignalPulse.new()
 			p.setup(src_lane, target_lane, 80.0)
 			root.active_pulses.append(p)
 			
-			# (a) Target symbol and color check
-			if p.target_lane != target_lane:
+			# (a) Target symbol and color check on pulse
+			if p.target_lane != target_lane or p.source_lane != src_lane:
 				p.free()
 				root.free()
 				return false
@@ -352,6 +339,10 @@ func test_repeated_target_and_glyph_agreement() -> bool:
 			root._update_preview_state()
 			
 			if root.signal_core.active_target_lane != target_lane or root.radar_lanes.active_target_lane != target_lane:
+				p.free()
+				root.free()
+				return false
+			if root.signal_core.active_source_lane != src_lane or root.radar_lanes.active_source_lane != src_lane:
 				p.free()
 				root.free()
 				return false
@@ -369,6 +360,18 @@ func test_repeated_target_and_glyph_agreement() -> bool:
 				root.free()
 				return false
 			
+			# Verify all other 5 rotor steps do NOT align
+			for other_step in range(PulseLoomConstants.NUM_LANES):
+				if other_step != req_step:
+					if PulseLoomRouting.is_aligned(src_lane, target_lane, other_step):
+						p.free()
+						root.free()
+						return false
+					if PulseLoomRouting.get_routed_lane(src_lane, other_step) == target_lane:
+						p.free()
+						root.free()
+						return false
+			
 			# (e) Resolution check
 			var prev_score: int = root.score
 			var prev_routes: int = root.routes_completed
@@ -376,11 +379,17 @@ func test_repeated_target_and_glyph_agreement() -> bool:
 			root._resolve_pulse(p)
 			root.active_pulses.erase(p)
 			p.free()
+			root._update_preview_state()
 			
 			if root.routes_completed != prev_routes + 1:
 				root.free()
 				return false
 			if root.score <= prev_score:
+				root.free()
+				return false
+			
+			# Ensure state is reset to idle (-1) after pulse resolution
+			if root.signal_core.active_target_lane != -1 or root.radar_lanes.active_target_lane != -1:
 				root.free()
 				return false
 	
@@ -407,7 +416,7 @@ func test_repeated_target_and_glyph_agreement() -> bool:
 			root.free()
 			return false
 		var p1_fail = root.active_pulses[0]
-		if p1_fail.target_lane != 3: # Emerald Square □
+		if p1_fail.target_lane != PulseLoomConstants.GlyphType.SQUARE: # Emerald Square □
 			root.free()
 			return false
 		# Set intentionally misaligned rotor step
@@ -437,7 +446,7 @@ func test_repeated_target_and_glyph_agreement() -> bool:
 	# Step 2: Crimson Circle ○ (src 5, tgt 4). Deliberately MISROUTE once, then succeed on retry!
 	root._process(0.55)
 	var p2_fail = root.active_pulses[0]
-	if p2_fail.target_lane != 4: # Crimson Circle ○
+	if p2_fail.target_lane != PulseLoomConstants.GlyphType.CIRCLE: # Crimson Circle ○
 		root.free()
 		return false
 	root.signal_core.set_step(0) # routed = 5 != 4
@@ -466,6 +475,7 @@ func test_repeated_target_and_glyph_agreement() -> bool:
 	
 	root.free()
 	return true
+
 
 func test_ticket_validation() -> bool:
 	var main_scene = load("res://scenes/main.tscn")
@@ -874,6 +884,48 @@ func test_constants() -> bool:
 		return false
 	if PulseLoomConstants.GLYPH_NAMES.size() != 6:
 		return false
+	if PulseLoomConstants.GLYPH_SYMBOLS.size() != 6:
+		return false
+	if PulseLoomConstants.LANE_COLORS.size() != 6:
+		return false
+	
+	# Explicit Canonical Mapping Assertions
+	if PulseLoomConstants.GlyphType.SQUARE != 3:
+		return false
+	if PulseLoomConstants.GLYPH_NAMES[3] != "SQUARE" or PulseLoomConstants.GLYPH_SYMBOLS[3] != "□":
+		return false
+	if PulseLoomConstants.LANE_COLORS[3] != Color(0.0, 1.0, 0.6):
+		return false
+	
+	if PulseLoomConstants.GlyphType.CIRCLE != 4:
+		return false
+	if PulseLoomConstants.GLYPH_NAMES[4] != "CIRCLE" or PulseLoomConstants.GLYPH_SYMBOLS[4] != "○":
+		return false
+	if PulseLoomConstants.LANE_COLORS[4] != Color(1.0, 0.20, 0.4):
+		return false
+	
+	# Authoritative Assisted Pulse Specification Assertions
+	if PulseLoomConstants.ASSISTED_PULSE_SPECS.size() != 3:
+		return false
+	var spec0 := PulseLoomConstants.get_assisted_pulse_spec(0)
+	if spec0["source_lane"] != 0 or spec0["target_lane"] != 2:
+		return false
+	var spec1 := PulseLoomConstants.get_assisted_pulse_spec(1)
+	if spec1["source_lane"] != 2 or spec1["target_lane"] != 3: # Emerald Green Square □
+		return false
+	var spec2 := PulseLoomConstants.get_assisted_pulse_spec(2)
+	if spec2["source_lane"] != 5 or spec2["target_lane"] != 4: # Crimson Red Circle ○
+		return false
+	
+	# Verify all 3 assisted pulses require distinct, non-zero rotor orientations
+	var step0 := PulseLoomRouting.get_required_step(spec0["source_lane"], spec0["target_lane"])
+	var step1 := PulseLoomRouting.get_required_step(spec1["source_lane"], spec1["target_lane"])
+	var step2 := PulseLoomRouting.get_required_step(spec2["source_lane"], spec2["target_lane"])
+	if step0 == 0 or step1 == 0 or step2 == 0:
+		return false
+	if step0 == step1 or step1 == step2 or step0 == step2:
+		return false
+	
 	if PulseLoomConstants.get_medal_for_score(70000, true) != "gold":
 		return false
 	if PulseLoomConstants.get_medal_for_score(40000, true) != "silver":

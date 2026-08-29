@@ -404,22 +404,10 @@ func _process_onboarding(delta: float) -> void:
 
 func _spawn_assisted_pulse(step: int) -> void:
 	_ensure_nodes()
-	var src_lane := 0
-	var tgt_lane := 2
-	var spd := 75.0
-	match step:
-		0:
-			src_lane = 0 # Right (Cyan Hexagon ⬡)
-			tgt_lane = 2 # Diamond ◇ (Amber)
-			spd = 75.0
-		1:
-			src_lane = 2 # Down-Left (Amber Diamond ◇)
-			tgt_lane = 3 # Square □ (Emerald Green)
-			spd = 80.0
-		2:
-			src_lane = 5 # Up-Right (Azure Cross ✕)
-			tgt_lane = 4 # Circle ○ (Crimson Red)
-			spd = 85.0
+	var spec := PulseLoomConstants.get_assisted_pulse_spec(step)
+	var src_lane: int = spec["source_lane"]
+	var tgt_lane: int = spec["target_lane"]
+	var spd: float = spec["speed"]
 	
 	var pulse := SignalPulse.new()
 	pulse.setup(src_lane, tgt_lane, spd, reduced_motion)
