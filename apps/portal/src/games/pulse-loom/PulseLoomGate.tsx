@@ -311,7 +311,7 @@ export default function PulseLoomGate({ onExit }: Props) {
       {/* Bottom Bar */}
       <footer className="pulse-loom-bottom-bar">
         <div>
-          <span>ROTATE</span>: A / D or ◀ / ▶ <b>·</b> <span>LAUNCH</span>: SPACE / CLICK <b>·</b> <span>PAUSE</span>: ESC / P
+          <span>ROTATE</span>: A / D or ◀ / ▶ <b>·</b> <span>LAUNCH</span>: PORTAL BUTTON <b>·</b> <span>PAUSE</span>: ESC / P
         </div>
         <div className="pulse-loom-stage-progress">
           <small>STAGE</small>

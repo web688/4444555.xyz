@@ -52,10 +52,18 @@ export type PulseLoomOutboundMessage =
   | { type: "RESTART"; ticket: RunTicket }
   | { type: "SET_SETTINGS"; settings: { muted: boolean; reducedMotion: boolean } };
 
+export function getPulseLoomDailySeed(date = new Date()): string {
+  return [
+    date.getUTCFullYear(),
+    String(date.getUTCMonth() + 1).padStart(2, "0"),
+    String(date.getUTCDate()).padStart(2, "0"),
+  ].join("-");
+}
+
 export function createPulseLoomRunTicket(seed?: number | string): RunTicket {
   const now = new Date();
   const expires = new Date(now.getTime() + 5 * 60 * 1000);
-  const seedString = seed !== undefined ? String(seed) : String(Math.floor(Math.random() * 1_000_000));
+  const seedString = seed !== undefined ? String(seed) : getPulseLoomDailySeed(now);
   const id = `run-pl-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   return {
     id,

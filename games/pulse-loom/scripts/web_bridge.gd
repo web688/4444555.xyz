@@ -52,24 +52,23 @@ func _on_js_message_raw(args: Array) -> void:
 	handle_command(parsed)
 
 func handle_command(cmd: Dictionary) -> void:
-	var msg_type: String = str(cmd.get("type", ""))
+	if not cmd.has("type") or typeof(cmd["type"]) != TYPE_STRING:
+		return
+	var msg_type: String = cmd["type"]
 	match msg_type:
 		"START":
-			var ticket = cmd.get("ticket")
-			if typeof(ticket) == TYPE_DICTIONARY:
-				host_start_requested.emit(ticket)
+			if cmd.has("ticket") and typeof(cmd["ticket"]) == TYPE_DICTIONARY:
+				host_start_requested.emit(cmd["ticket"])
 		"PAUSE":
 			host_pause_requested.emit()
 		"RESUME":
 			host_resume_requested.emit()
 		"RESTART":
-			var ticket = cmd.get("ticket")
-			if typeof(ticket) == TYPE_DICTIONARY:
-				host_restart_requested.emit(ticket)
+			if cmd.has("ticket") and typeof(cmd["ticket"]) == TYPE_DICTIONARY:
+				host_restart_requested.emit(cmd["ticket"])
 		"SET_SETTINGS", "INIT":
-			var settings = cmd.get("settings")
-			if typeof(settings) == TYPE_DICTIONARY:
-				host_settings_changed.emit(settings)
+			if cmd.has("settings") and typeof(cmd["settings"]) == TYPE_DICTIONARY:
+				host_settings_changed.emit(cmd["settings"])
 
 func send_to_host(msg: Dictionary) -> void:
 	if OS.has_feature("web"):

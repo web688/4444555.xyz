@@ -60,14 +60,26 @@ func _init() -> void:
 		quit(1)
 
 func get_valid_test_ticket(seed_str: String = "1337") -> Dictionary:
+	var now_unix := Time.get_unix_time_from_system()
+	var issued_dict := Time.get_datetime_dict_from_unix_time(int(now_unix))
+	var expires_dict := Time.get_datetime_dict_from_unix_time(int(now_unix) + 300)
+	var issued_iso := "%04d-%02d-%02dT%02d:%02d:%02d.123Z" % [
+		issued_dict["year"], issued_dict["month"], issued_dict["day"],
+		issued_dict["hour"], issued_dict["minute"], issued_dict["second"]
+	]
+	var expires_iso := "%04d-%02d-%02dT%02d:%02d:%02d.456Z" % [
+		expires_dict["year"], expires_dict["month"], expires_dict["day"],
+		expires_dict["hour"], expires_dict["minute"], expires_dict["second"]
+	]
 	return {
 		"id": "run-pl-headless-smoke-001",
 		"gameId": "pulse-loom",
 		"gameVersion": "0.1.0",
+		"issuedAt": issued_iso,
+		"expiresAt": expires_iso,
+		"seed": seed_str,
 		"ruleset": "conduit-v1",
-		"signature": "local-unverified",
-		"expiresAt": "2035-01-01T00:00:00Z",
-		"seed": seed_str
+		"signature": "local-unverified"
 	}
 
 func test_ticket_validation() -> bool:
@@ -82,60 +94,222 @@ func test_ticket_validation() -> bool:
 	if root.current_state != GameManager.State.READY:
 		root.free()
 		return false
+	root._on_host_restart({})
+	if root.current_state != GameManager.State.READY:
+		root.free()
+		return false
 	
-	# 2. Missing/wrong prefix ID should fail
+	# 2. Missing issuedAt should fail
+	var no_issued := get_valid_test_ticket()
+	no_issued.erase("issuedAt")
+	if root.is_valid_ticket(no_issued):
+		root.free()
+		return false
+	root.start_run(no_issued)
+	if root.current_state != GameManager.State.READY:
+		root.free()
+		return false
+	root._on_host_restart(no_issued)
+	if root.current_state != GameManager.State.READY:
+		root.free()
+		return false
+
+	# 3. Missing seed should fail
+	var no_seed := get_valid_test_ticket()
+	no_seed.erase("seed")
+	if root.is_valid_ticket(no_seed):
+		root.free()
+		return false
+	root.start_run(no_seed)
+	if root.current_state != GameManager.State.READY:
+		root.free()
+		return false
+	root._on_host_restart(no_seed)
+	if root.current_state != GameManager.State.READY:
+		root.free()
+		return false
+
+	# 4. Missing expiresAt should fail
+	var no_expires := get_valid_test_ticket()
+	no_expires.erase("expiresAt")
+	if root.is_valid_ticket(no_expires):
+		root.free()
+		return false
+
+	# 5. Missing other required fields
+	for field in ["id", "gameId", "gameVersion", "ruleset", "signature"]:
+		var missing_f := get_valid_test_ticket()
+		missing_f.erase(field)
+		if root.is_valid_ticket(missing_f):
+			root.free()
+			return false
+
+	# 6. Wrong field types (non-string types must be rejected, not coerced)
+	var int_seed := get_valid_test_ticket()
+	int_seed["seed"] = 1337
+	if root.is_valid_ticket(int_seed):
+		root.free()
+		return false
+	root.start_run(int_seed)
+	if root.current_state != GameManager.State.READY:
+		root.free()
+		return false
+
+	var int_id := get_valid_test_ticket()
+	int_id["id"] = 12345
+	if root.is_valid_ticket(int_id):
+		root.free()
+		return false
+
+	var float_issued := get_valid_test_ticket()
+	float_issued["issuedAt"] = 123456.78
+	if root.is_valid_ticket(float_issued):
+		root.free()
+		return false
+
+	var int_expires := get_valid_test_ticket()
+	int_expires["expiresAt"] = 999999999
+	if root.is_valid_ticket(int_expires):
+		root.free()
+		return false
+
+	var bool_sig := get_valid_test_ticket()
+	bool_sig["signature"] = true
+	if root.is_valid_ticket(bool_sig):
+		root.free()
+		return false
+
+	# 7. Empty string fields
+	var empty_seed := get_valid_test_ticket()
+	empty_seed["seed"] = ""
+	if root.is_valid_ticket(empty_seed):
+		root.free()
+		return false
+
+	var empty_id := get_valid_test_ticket()
+	empty_id["id"] = ""
+	if root.is_valid_ticket(empty_id):
+		root.free()
+		return false
+
+	# 8. Missing/wrong prefix ID should fail
 	var bad_id := get_valid_test_ticket()
 	bad_id["id"] = "bad-id-123"
 	if root.is_valid_ticket(bad_id):
 		root.free()
 		return false
-	
-	# 3. Wrong gameId should fail
+
+	# 9. Wrong gameId should fail
 	var bad_game := get_valid_test_ticket()
 	bad_game["gameId"] = "other-game"
 	if root.is_valid_ticket(bad_game):
 		root.free()
 		return false
-	
-	# 4. Wrong gameVersion should fail
+
+	# 10. Wrong gameVersion should fail
 	var bad_ver := get_valid_test_ticket()
 	bad_ver["gameVersion"] = "0.2.0"
 	if root.is_valid_ticket(bad_ver):
 		root.free()
 		return false
-	
-	# 5. Wrong ruleset should fail
+
+	# 11. Wrong ruleset should fail
 	var bad_rules := get_valid_test_ticket()
 	bad_rules["ruleset"] = "wrong-ruleset"
 	if root.is_valid_ticket(bad_rules):
 		root.free()
 		return false
-	
-	# 6. Wrong signature should fail
+
+	# 12. Wrong signature should fail
 	var bad_sig := get_valid_test_ticket()
 	bad_sig["signature"] = "fake-sig"
 	if root.is_valid_ticket(bad_sig):
 		root.free()
 		return false
-	
-	# 7. Expired timestamp should fail
+
+	# 13. Invalid timestamp formats
+	var bad_issued_ts := get_valid_test_ticket()
+	bad_issued_ts["issuedAt"] = "invalid-date-string"
+	if root.is_valid_ticket(bad_issued_ts):
+		root.free()
+		return false
+
+	var bad_expires_ts := get_valid_test_ticket()
+	bad_expires_ts["expiresAt"] = "not-a-datetime"
+	if root.is_valid_ticket(bad_expires_ts):
+		root.free()
+		return false
+
+	# 14. Expired timestamp should fail
 	var expired := get_valid_test_ticket()
-	expired["expiresAt"] = "2020-01-01T00:00:00Z"
+	expired["expiresAt"] = "2020-01-01T00:00:00.000Z"
 	if root.is_valid_ticket(expired):
 		root.free()
 		return false
-	
-	# 8. Valid ticket should pass and start_run transitions to RUNNING
-	var valid := get_valid_test_ticket()
+	root.start_run(expired)
+	if root.current_state != GameManager.State.READY:
+		root.free()
+		return false
+	root._on_host_restart(expired)
+	if root.current_state != GameManager.State.READY:
+		root.free()
+		return false
+
+	# 15. expiresAt <= issuedAt should fail
+	var expires_before_issued := get_valid_test_ticket()
+	expires_before_issued["issuedAt"] = "2030-01-01T12:00:00.000Z"
+	expires_before_issued["expiresAt"] = "2030-01-01T11:00:00.000Z"
+	if root.is_valid_ticket(expires_before_issued):
+		root.free()
+		return false
+	root.start_run(expires_before_issued)
+	if root.current_state != GameManager.State.READY:
+		root.free()
+		return false
+
+	var expires_equal_issued := get_valid_test_ticket()
+	expires_equal_issued["issuedAt"] = "2030-01-01T12:00:00.000Z"
+	expires_equal_issued["expiresAt"] = "2030-01-01T12:00:00.000Z"
+	if root.is_valid_ticket(expires_equal_issued):
+		root.free()
+		return false
+
+	# 16. Valid ticket should pass and start_run transitions READY -> RUNNING
+	var valid := get_valid_test_ticket("smoke-seed-42")
 	if not root.is_valid_ticket(valid):
 		root.free()
 		return false
-	
+
 	root.start_run(valid)
 	if root.current_state != GameManager.State.RUNNING:
 		root.free()
 		return false
+	if root.seed_val != hash("smoke-seed-42"):
+		root.free()
+		return false
+	if root.ticket_id != "run-pl-headless-smoke-001":
+		root.free()
+		return false
+
+	# 17. Reset to READY and test _on_host_restart with valid ticket
+	root.reset_ready()
+	if root.current_state != GameManager.State.READY:
+		root.free()
+		return false
 	
+	var valid_restart := get_valid_test_ticket("restart-seed-99")
+	valid_restart["id"] = "run-pl-headless-restart-002"
+	root._on_host_restart(valid_restart)
+	if root.current_state != GameManager.State.RUNNING:
+		root.free()
+		return false
+	if root.ticket_id != "run-pl-headless-restart-002":
+		root.free()
+		return false
+	if root.seed_val != hash("restart-seed-99"):
+		root.free()
+		return false
+
 	root.free()
 	return true
 

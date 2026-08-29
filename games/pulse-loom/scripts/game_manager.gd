@@ -103,26 +103,86 @@ func toggle_pause() -> void:
 	elif current_state == State.PAUSED:
 		resume_game()
 
+static func parse_iso_datetime(iso_str: String) -> float:
+	if iso_str.is_empty():
+		return -1.0
+	var clean := iso_str.strip_edges()
+	if clean.ends_with("Z") or clean.ends_with("z"):
+		clean = clean.substr(0, clean.length() - 1)
+	var millis := 0.0
+	var dot_idx := clean.find(".")
+	if dot_idx != -1:
+		var frac_str := clean.substr(dot_idx)
+		clean = clean.substr(0, dot_idx)
+		if frac_str.length() <= 1:
+			return -1.0
+		var frac_digits := frac_str.substr(1)
+		if not frac_digits.is_valid_int():
+			return -1.0
+		millis = frac_str.to_float()
+	var dt_dict := Time.get_datetime_dict_from_datetime_string(clean, false)
+	if dt_dict.is_empty():
+		return -1.0
+	if int(dt_dict.get("year", 0)) <= 0 or int(dt_dict.get("month", 0)) <= 0 or int(dt_dict.get("day", 0)) <= 0:
+		return -1.0
+	var base_unix := Time.get_unix_time_from_datetime_dict(dt_dict)
+	if base_unix <= 0:
+		return -1.0
+	return float(base_unix) + millis
+
 func is_valid_ticket(ticket: Dictionary) -> bool:
 	if ticket.is_empty():
 		return false
-	var t_id := str(ticket.get("id", ""))
-	if t_id.is_empty() or not t_id.begins_with("run-pl-"):
+	
+	const REQUIRED_FIELDS := [
+		"id",
+		"gameId",
+		"gameVersion",
+		"issuedAt",
+		"expiresAt",
+		"seed",
+		"ruleset",
+		"signature"
+	]
+	
+	for field in REQUIRED_FIELDS:
+		if not ticket.has(field):
+			return false
+		var val = ticket[field]
+		if typeof(val) != TYPE_STRING:
+			return false
+		if (val as String).is_empty():
+			return false
+	
+	var t_id: String = ticket["id"]
+	if not t_id.begins_with("run-pl-"):
 		return false
-	if str(ticket.get("gameId", "")) != "pulse-loom":
+	
+	if ticket["gameId"] != "pulse-loom":
 		return false
-	if str(ticket.get("gameVersion", "")) != "0.1.0":
+	
+	if ticket["gameVersion"] != "0.1.0":
 		return false
-	if str(ticket.get("ruleset", "")) != "conduit-v1":
+	
+	if ticket["ruleset"] != "conduit-v1":
 		return false
-	if str(ticket.get("signature", "")) != "local-unverified":
+	
+	if ticket["signature"] != "local-unverified":
 		return false
-	if not ticket.has("expiresAt"):
+	
+	var issued_unix := parse_iso_datetime(ticket["issuedAt"])
+	var expires_unix := parse_iso_datetime(ticket["expiresAt"])
+	
+	if issued_unix <= 0.0 or expires_unix <= 0.0:
 		return false
-	var expires_str := str(ticket.get("expiresAt", ""))
-	var expires_unix := Time.get_unix_time_from_datetime_string(expires_str)
-	if expires_unix <= 0 or expires_unix <= Time.get_unix_time_from_system():
+	
+	if expires_unix <= issued_unix:
 		return false
+	
+	var current_system_time := Time.get_unix_time_from_system()
+	if expires_unix <= current_system_time:
+		return false
+	
 	return true
 
 func start_run(ticket: Dictionary = {}) -> void:
@@ -130,12 +190,9 @@ func start_run(ticket: Dictionary = {}) -> void:
 	if not is_valid_ticket(ticket):
 		push_error("[Pulse Loom] Refusing start_run: missing, invalid, or expired RunTicket.")
 		return
-	ticket_id = str(ticket.get("id", ""))
-	var raw_seed = ticket.get("seed", "1337")
-	if typeof(raw_seed) == TYPE_STRING:
-		seed_val = hash(raw_seed)
-	else:
-		seed_val = int(raw_seed)
+	ticket_id = ticket["id"]
+	var seed_str: String = ticket["seed"]
+	seed_val = hash(seed_str)
 	
 	rng.seed = seed_val
 	
@@ -202,12 +259,12 @@ func _on_host_restart(ticket: Dictionary) -> void:
 
 func _on_host_settings(settings: Dictionary) -> void:
 	_ensure_nodes()
-	if settings.has("muted"):
-		muted = bool(settings["muted"])
+	if settings.has("muted") and typeof(settings["muted"]) == TYPE_BOOL:
+		muted = settings["muted"]
 		if audio_synth:
 			audio_synth.set_muted(muted)
-	if settings.has("reducedMotion"):
-		reduced_motion = bool(settings["reducedMotion"])
+	if settings.has("reducedMotion") and typeof(settings["reducedMotion"]) == TYPE_BOOL:
+		reduced_motion = settings["reducedMotion"]
 		if signal_core:
 			signal_core.reduced_motion = reduced_motion
 		for p in active_pulses:

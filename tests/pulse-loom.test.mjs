@@ -11,6 +11,7 @@ import {
 import {
   createPulseLoomHost,
   createPulseLoomRunTicket,
+  getPulseLoomDailySeed,
   validateScoreClaim,
   validateIncomingMessage,
   sendPostMessageToGodot,
@@ -119,7 +120,25 @@ test("Pulse Loom GameHost maintains stable lifecycle and active ticket across se
 });
 
 test("Pulse Loom SDK RunTicket schema and ScoreClaim validation enforce contract end-to-end", () => {
-  // Test run ticket creation
+  // Test deterministic daily seed on default run tickets
+  const defaultTicket1 = createPulseLoomRunTicket();
+  const defaultTicket2 = createPulseLoomRunTicket();
+  const expectedDailySeed = getPulseLoomDailySeed();
+
+  assert.equal(defaultTicket1.seed, expectedDailySeed);
+  assert.equal(defaultTicket2.seed, expectedDailySeed);
+  assert.equal(defaultTicket1.seed, defaultTicket2.seed);
+  assert.notEqual(defaultTicket1.id, defaultTicket2.id);
+  assert.ok(defaultTicket1.id.startsWith("run-pl-"));
+  assert.ok(defaultTicket2.id.startsWith("run-pl-"));
+  assert.equal(defaultTicket1.gameId, "pulse-loom");
+  assert.equal(defaultTicket1.gameVersion, "0.1.0");
+  assert.equal(defaultTicket1.ruleset, "conduit-v1");
+  assert.equal(defaultTicket1.signature, "local-unverified");
+  assert.ok(new Date(defaultTicket1.issuedAt).getTime() > 0);
+  assert.ok(new Date(defaultTicket1.expiresAt).getTime() > new Date(defaultTicket1.issuedAt).getTime());
+
+  // Test explicit custom seed creation
   const ticket = createPulseLoomRunTicket(2026);
   assert.equal(ticket.gameId, "pulse-loom");
   assert.equal(ticket.gameVersion, "0.1.0");
