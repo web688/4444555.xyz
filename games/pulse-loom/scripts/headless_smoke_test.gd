@@ -5,6 +5,7 @@ const PulseLoomConstants = preload("res://scripts/constants.gd")
 const SignalCore = preload("res://scripts/signal_core.gd")
 const SignalPulse = preload("res://scripts/pulse.gd")
 const GameManager = preload("res://scripts/game_manager.gd")
+const WebBridgeScript = preload("res://scripts/web_bridge.gd")
 
 func _init() -> void:
 	print("=== Pulse Loom Headless Deterministic Smoke Test ===")
@@ -421,7 +422,7 @@ func test_ticket_validation() -> bool:
 	return true
 
 func test_web_bridge_boundary() -> bool:
-	var bridge := WebBridge.new()
+	var bridge := WebBridgeScript.new()
 	var signal_fired := [false]
 	var received_ticket := [{}]
 	
