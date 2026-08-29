@@ -329,13 +329,13 @@ export default function PulseLoomGate({ onExit }: Props) {
           <h2>Pulse Loom</h2>
           <div className="pulse-loom-briefing">
             <span>
-              <b>01 / ALIGN</b>Rotate the core conduit in 60° increments with A/D or ◀/▶.
+              <b>01 / WATCH</b>Incoming signals show a target symbol (⬡, △, ◇, □, ○, ✕).
             </span>
             <span>
-              <b>02 / ROUTE</b>Match incoming pulses to their target radial glyph conduits.
+              <b>02 / ROTATE</b>Press A/D or ◀/▶ to turn the center router so the path points to that symbol.
             </span>
             <span>
-              <b>03 / SURVIVE</b>Build streak multipliers. 3 Overload misroutes terminate the run.
+              <b>03 / SCORE</b>Aligned signals score points and build combos. 3 wrong routes overload the core.
             </span>
           </div>
           <button onClick={handleLaunch} disabled={!engineReady}>

@@ -3,6 +3,7 @@ class_name GameManager
 extends Node2D
 
 const PulseLoomConstants = preload("res://scripts/constants.gd")
+const PulseLoomRouting = preload("res://scripts/routing.gd")
 const SignalCore = preload("res://scripts/signal_core.gd")
 const RadarLanes = preload("res://scripts/radar_lanes.gd")
 const SignalPulse = preload("res://scripts/pulse.gd")
@@ -32,15 +33,22 @@ var current_stage: int = 1
 var spawn_timer: float = 0.0
 var active_pulses: Array[SignalPulse] = []
 
+# Assisted Onboarding State
+var onboarding_active: bool = true
+var onboarding_step: int = 0 # 0, 1, 2 (3 assisted pulses)
+var assisted_pulse_spawned: bool = false
+var assisted_pulse_delay: float = 0.0
+var onboarding_cue: String = ""
+
 # Deterministic PRNG initialized immediately
 var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 
-@onready var signal_core: SignalCore = $SignalCore
-@onready var radar_lanes: RadarLanes = $RadarLanes
-@onready var audio_synth: PulseAudio = $AudioSynth
-@onready var web_bridge: WebBridge = $WebBridge
-@onready var pulse_container: Node2D = $PulseContainer
-@onready var ui_overlay: CanvasItem = $UIOverlay
+var signal_core: Node = null
+var radar_lanes: Node = null
+var audio_synth: Node = null
+var web_bridge: Node = null
+var pulse_container: Node2D = null
+var ui_overlay: CanvasItem = null
 
 var telemetry_timer: float = 0.0
 var reduced_motion: bool = false
@@ -48,13 +56,13 @@ var muted: bool = false
 
 func _ensure_nodes() -> void:
 	if not signal_core:
-		signal_core = get_node_or_null("SignalCore") as SignalCore
+		signal_core = get_node_or_null("SignalCore")
 	if not radar_lanes:
-		radar_lanes = get_node_or_null("RadarLanes") as RadarLanes
+		radar_lanes = get_node_or_null("RadarLanes")
 	if not audio_synth:
-		audio_synth = get_node_or_null("AudioSynth") as PulseAudio
+		audio_synth = get_node_or_null("AudioSynth")
 	if not web_bridge:
-		web_bridge = get_node_or_null("WebBridge") as WebBridge
+		web_bridge = get_node_or_null("WebBridge")
 	if not pulse_container:
 		pulse_container = get_node_or_null("PulseContainer") as Node2D
 	if not ui_overlay:
@@ -88,6 +96,7 @@ func rotate_core_left() -> void:
 			signal_core.rotate_left()
 		if audio_synth:
 			audio_synth.play_rotate()
+		_update_preview_state()
 
 func rotate_core_right() -> void:
 	_ensure_nodes()
@@ -96,12 +105,38 @@ func rotate_core_right() -> void:
 			signal_core.rotate_right()
 		if audio_synth:
 			audio_synth.play_rotate()
+		_update_preview_state()
 
 func toggle_pause() -> void:
 	if current_state == State.RUNNING:
 		pause_game()
 	elif current_state == State.PAUSED:
 		resume_game()
+
+func get_nearest_incoming_pulse() -> SignalPulse:
+	var nearest: SignalPulse = null
+	var min_dist: float = 999999.0
+	for p in active_pulses:
+		if is_instance_valid(p) and p.active and not p.resolved:
+			if p.distance < min_dist:
+				min_dist = p.distance
+				nearest = p
+	return nearest
+
+func _update_preview_state() -> void:
+	_ensure_nodes()
+	var nearest := get_nearest_incoming_pulse()
+	var r_step: int = signal_core.current_step if signal_core else 0
+	if nearest:
+		if signal_core:
+			signal_core.set_preview_pulse(nearest.source_lane, nearest.target_lane, nearest.distance)
+		if radar_lanes:
+			radar_lanes.set_preview_state(nearest.source_lane, nearest.target_lane, r_step, nearest.distance)
+	else:
+		if signal_core:
+			signal_core.set_preview_pulse(-1, -1, 0.0)
+		if radar_lanes:
+			radar_lanes.set_preview_state(-1, -1, r_step, 0.0)
 
 static func parse_iso_datetime(iso_str: String) -> float:
 	# Host emits JavaScript Date.toISOString(): YYYY-MM-DDTHH:mm:ss.sssZ (exact 24 chars)
@@ -241,12 +276,20 @@ func start_run(ticket: Dictionary = {}) -> void:
 	routes_completed = 0
 	perfect_routes = 0
 	current_stage = 1
-	spawn_timer = 1.0
+	spawn_timer = 0.0
+	
+	# Start in assisted onboarding
+	onboarding_active = true
+	onboarding_step = 0
+	assisted_pulse_spawned = false
+	assisted_pulse_delay = 0.25
+	onboarding_cue = "INITIALIZING GUIDED CALIBRATION..."
 	
 	_clear_all_pulses()
 	if signal_core:
 		signal_core.set_step(0)
 	
+	_update_preview_state()
 	set_state(State.RUNNING)
 	_emit_score_update()
 
@@ -259,6 +302,7 @@ func resume_game() -> void:
 		set_state(State.RUNNING)
 
 func reset_ready() -> void:
+	_ensure_nodes()
 	_clear_all_pulses()
 	time_remaining = PulseLoomConstants.TOTAL_RUN_SECONDS
 	score = 0
@@ -268,6 +312,13 @@ func reset_ready() -> void:
 	routes_completed = 0
 	perfect_routes = 0
 	current_stage = 1
+	onboarding_active = true
+	onboarding_step = 0
+	assisted_pulse_spawned = false
+	assisted_pulse_delay = 0.0
+	if signal_core:
+		signal_core.set_step(0)
+	_update_preview_state()
 	set_state(State.READY)
 	_emit_score_update()
 
@@ -307,9 +358,76 @@ func _on_host_settings(settings: Dictionary) -> void:
 			p.reduced_motion = reduced_motion
 
 func _process(delta: float) -> void:
+	_ensure_nodes()
 	if current_state != State.RUNNING:
 		return
 	
+	if onboarding_active:
+		_process_onboarding(delta)
+	else:
+		_process_normal_gameplay(delta)
+	
+	_update_pulses(delta)
+	_update_preview_state()
+	
+	telemetry_timer += delta
+	if telemetry_timer >= 0.1:
+		telemetry_timer = 0.0
+		_emit_telemetry()
+
+func _process_onboarding(delta: float) -> void:
+	# Keep time_remaining full during assisted onboarding
+	time_remaining = PulseLoomConstants.TOTAL_RUN_SECONDS
+	
+	if not assisted_pulse_spawned:
+		assisted_pulse_delay -= delta
+		if assisted_pulse_delay <= 0.0:
+			_spawn_assisted_pulse(onboarding_step)
+			assisted_pulse_spawned = true
+	
+	var nearest := get_nearest_incoming_pulse()
+	if nearest:
+		var r_step: int = signal_core.current_step if signal_core else 0
+		var aligned := PulseLoomRouting.is_aligned(nearest.source_lane, nearest.target_lane, r_step)
+		var tgt_name: String = PulseLoomConstants.GLYPH_NAMES[nearest.target_lane]
+		var tgt_sym: String = PulseLoomConstants.GLYPH_SYMBOLS[nearest.target_lane]
+		if aligned:
+			onboarding_cue = "ROUTE ALIGNED! Target %s %s locked." % [tgt_name, tgt_sym]
+		else:
+			var req_step := PulseLoomRouting.get_required_step(nearest.source_lane, nearest.target_lane)
+			var diff := posmod(req_step - r_step, PulseLoomConstants.NUM_LANES)
+			if diff <= 3:
+				onboarding_cue = "Press D / ► (%d step%s) to align with %s %s" % [diff, "s" if diff > 1 else "", tgt_name, tgt_sym]
+			else:
+				var left_steps := 6 - diff
+				onboarding_cue = "Press A / ◄ (%d step%s) to align with %s %s" % [left_steps, "s" if left_steps > 1 else "", tgt_name, tgt_sym]
+
+func _spawn_assisted_pulse(step: int) -> void:
+	_ensure_nodes()
+	var src_lane := 0
+	var tgt_lane := 2
+	var spd := 75.0
+	match step:
+		0:
+			src_lane = 0 # Right
+			tgt_lane = 2 # Diamond ◇
+			spd = 75.0
+		1:
+			src_lane = 3 # Left
+			tgt_lane = 1 # Triangle △
+			spd = 80.0
+		2:
+			src_lane = 4 # Top-Left
+			tgt_lane = 4 # Square □
+			spd = 85.0
+	
+	var pulse := SignalPulse.new()
+	pulse.setup(src_lane, tgt_lane, spd, reduced_motion)
+	if pulse_container:
+		pulse_container.add_child(pulse)
+	active_pulses.append(pulse)
+
+func _process_normal_gameplay(delta: float) -> void:
 	time_remaining -= delta
 	if time_remaining <= 0.0:
 		time_remaining = 0.0
@@ -334,13 +452,6 @@ func _process(delta: float) -> void:
 	if spawn_timer <= 0.0:
 		_spawn_pulse()
 		spawn_timer = _get_spawn_interval()
-	
-	_update_pulses(delta)
-	
-	telemetry_timer += delta
-	if telemetry_timer >= 0.1:
-		telemetry_timer = 0.0
-		_emit_telemetry()
 
 func _get_spawn_interval() -> float:
 	match current_stage:
@@ -403,9 +514,10 @@ func _resolve_pulse(pulse: SignalPulse) -> void:
 	pulse.resolved = true
 	
 	var rotor_step: int = signal_core.current_step if signal_core else 0
-	var routed_lane := (pulse.source_lane + rotor_step) % PulseLoomConstants.NUM_LANES
+	var routed_lane := PulseLoomRouting.get_routed_lane(pulse.source_lane, rotor_step)
+	var is_aligned := PulseLoomRouting.is_aligned(pulse.source_lane, pulse.target_lane, rotor_step)
 	
-	if routed_lane == pulse.target_lane:
+	if is_aligned:
 		streak += 1
 		multiplier = min(10, 1 + int(streak / 2))
 		if multiplier > max_multiplier:
@@ -423,23 +535,41 @@ func _resolve_pulse(pulse: SignalPulse) -> void:
 		if signal_core:
 			signal_core.trigger_flash(PulseLoomConstants.LANE_COLORS[routed_lane])
 		if radar_lanes:
-			radar_lanes.trigger_lane_flash(routed_lane)
+			radar_lanes.trigger_lane_flash(routed_lane, "success")
 		if audio_synth:
 			audio_synth.play_route_success(multiplier)
+		
+		if onboarding_active:
+			onboarding_step += 1
+			if onboarding_step >= 3:
+				onboarding_active = false
+				spawn_timer = 1.0
+				onboarding_cue = "CALIBRATION COMPLETE · SCORE ATTACK ENGAGED!"
+			else:
+				assisted_pulse_spawned = false
+				assisted_pulse_delay = 0.4
 	else:
 		streak = 0
 		multiplier = 1
-		overloads += 1
 		
 		if signal_core:
 			signal_core.trigger_flash(Color(1.0, 0.2, 0.2), 0.35)
+		if radar_lanes:
+			radar_lanes.trigger_lane_flash(routed_lane, "miss")
 		if audio_synth:
 			audio_synth.play_miss()
 			audio_synth.play_overload_alert()
 		
-		if overloads >= PulseLoomConstants.MAX_OVERLOADS:
-			_complete_run("overload")
-			return
+		if onboarding_active:
+			# In onboarding, respawn the step pulse with guidance so the player learns without early loss
+			assisted_pulse_spawned = false
+			assisted_pulse_delay = 0.5
+			onboarding_cue = "MISALIGNED! Practice aligning the conduit..."
+		else:
+			overloads += 1
+			if overloads >= PulseLoomConstants.MAX_OVERLOADS:
+				_complete_run("overload")
+				return
 	
 	_emit_score_update()
 

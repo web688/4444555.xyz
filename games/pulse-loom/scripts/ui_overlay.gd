@@ -3,6 +3,7 @@ class_name UIOverlay
 extends Control
 
 const PulseLoomConstants = preload("res://scripts/constants.gd")
+const PulseLoomRouting = preload("res://scripts/routing.gd")
 
 var current_score: int = 0
 var current_multiplier: int = 1
@@ -58,27 +59,43 @@ func _handle_touch_tap(pos: Vector2) -> void:
 func _draw() -> void:
 	var vp_size := get_viewport_rect().size
 	var font := ThemeDB.fallback_font
+	var gm = get_parent()
 	
+	var is_onboarding := (gm != null and bool(gm.get("onboarding_active")))
 	var time_str := "TIME %04.1fS" % max(0.0, current_time_left)
-	var stage_str := "STAGE %d/4" % current_stage
+	var stage_str := "CALIBRATION" if is_onboarding else "STAGE %d/4" % current_stage
 	var score_str := "%s" % str(current_score).lpad(7, "0")
 	var mult_str := "×%d MULTIPLIER" % current_multiplier
 	
 	draw_string(font, Vector2(40, 50), score_str, HORIZONTAL_ALIGNMENT_LEFT, -1, 32, Color(1, 1, 1, 0.95))
 	draw_string(font, Vector2(40, 75), mult_str, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.0, 0.94, 1.0, 0.9))
 	
-	draw_string(font, Vector2(vp_size.x - 220, 50), time_str, HORIZONTAL_ALIGNMENT_LEFT, -1, 28, Color(1, 1, 1, 0.95))
-	draw_string(font, Vector2(vp_size.x - 220, 75), stage_str, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.69, 0.40, 1.0, 0.9))
+	draw_string(font, Vector2(vp_size.x - 240, 50), time_str, HORIZONTAL_ALIGNMENT_LEFT, -1, 28, Color(1, 1, 1, 0.95))
+	draw_string(font, Vector2(vp_size.x - 240, 75), stage_str, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.0, 1.0, 0.7, 0.95) if is_onboarding else Color(0.69, 0.40, 1.0, 0.9))
 	
 	var ovl_label := "OVERLOAD"
-	draw_string(font, Vector2(vp_size.x * 0.5 - 60, 45), ovl_label, HORIZONTAL_ALIGNMENT_CENTER, 120, 13, Color(0.7, 0.7, 0.8, 0.7))
+	draw_string(font, Vector2(vp_size.x * 0.5 - 60, 42), ovl_label, HORIZONTAL_ALIGNMENT_CENTER, 120, 13, Color(0.7, 0.7, 0.8, 0.7))
 	for i in range(PulseLoomConstants.MAX_OVERLOADS):
 		var box_x: float = vp_size.x * 0.5 - 35.0 + (i * 26.0)
-		var box_rect := Rect2(box_x, 52, 18, 12)
+		var box_rect := Rect2(box_x, 48, 18, 12)
 		if i < current_overloads:
 			draw_rect(box_rect, Color(1.0, 0.2, 0.35, 0.95))
 		else:
 			draw_rect(box_rect, Color(0.15, 0.2, 0.3, 0.6), false, 1.5)
+	
+	# Assisted Onboarding Guidance Banner
+	if is_onboarding and current_state == "running":
+		var ob_cue: String = str(gm.get("onboarding_cue"))
+		var ob_step: int = int(gm.get("onboarding_step")) + 1
+		var banner_w: float = 540.0
+		var banner_h: float = 46.0
+		var banner_rect := Rect2((vp_size.x - banner_w) * 0.5, 72, banner_w, banner_h)
+		draw_rect(banner_rect, Color(0.03, 0.08, 0.16, 0.92))
+		draw_rect(banner_rect, Color(0.0, 1.0, 0.7, 0.7), false, 1.5)
+		
+		var step_tag := "PULSE %d/3" % min(3, ob_step)
+		draw_string(font, Vector2(banner_rect.position.x + 16, banner_rect.position.y + 28), step_tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0.0, 1.0, 0.7, 0.98))
+		draw_string(font, Vector2(banner_rect.position.x + 115, banner_rect.position.y + 28), ob_cue, HORIZONTAL_ALIGNMENT_LEFT, int(banner_w - 130), 13, Color.WHITE)
 	
 	var l_hint := "◀ ROTATE LEFT (A / ◄)"
 	var r_hint := "ROTATE RIGHT (D / ►) ▶"
@@ -86,16 +103,18 @@ func _draw() -> void:
 	draw_string(font, Vector2(vp_size.x - 240, vp_size.y - 30), r_hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.5, 0.6, 0.75, 0.6))
 	
 	if current_state == "ready":
-		var box_w: float = 460.0
-		var box_h: float = 180.0
+		var box_w: float = 520.0
+		var box_h: float = 210.0
 		var rect := Rect2((vp_size.x - box_w) * 0.5, (vp_size.y - box_h) * 0.5 - 20, box_w, box_h)
-		draw_rect(rect, Color(0.04, 0.07, 0.12, 0.92))
-		draw_rect(rect, Color(0.0, 0.94, 1.0, 0.6), false, 1.5)
+		draw_rect(rect, Color(0.04, 0.07, 0.12, 0.94))
+		draw_rect(rect, Color(0.0, 0.94, 1.0, 0.7), false, 1.5)
 		
-		draw_string(font, Vector2(rect.position.x, rect.position.y + 40), "PULSE LOOM", HORIZONTAL_ALIGNMENT_CENTER, int(box_w), 24, Color.WHITE)
-		draw_string(font, Vector2(rect.position.x, rect.position.y + 70), "Rotate the core conduit (A/D or ◄/►) to route pulses to matching glyphs", HORIZONTAL_ALIGNMENT_CENTER, int(box_w), 13, Color(0.8, 0.9, 1.0, 0.8))
-		draw_string(font, Vector2(rect.position.x, rect.position.y + 95), "3 Overloads trigger core failure · 90s score attack", HORIZONTAL_ALIGNMENT_CENTER, int(box_w), 13, Color(1.0, 0.7, 0.3, 0.8))
-		draw_string(font, Vector2(rect.position.x, rect.position.y + 145), "USE PORTAL LAUNCH CONTROLS TO INITIALIZE RUN", HORIZONTAL_ALIGNMENT_CENTER, int(box_w), 15, Color(0.0, 0.94, 1.0, 0.95))
+		draw_string(font, Vector2(rect.position.x, rect.position.y + 36), "PULSE LOOM", HORIZONTAL_ALIGNMENT_CENTER, int(box_w), 24, Color.WHITE)
+		draw_string(font, Vector2(rect.position.x, rect.position.y + 68), "Incoming signals show a target symbol (⬡, △, ◇, □, ○, ✕).", HORIZONTAL_ALIGNMENT_CENTER, int(box_w), 13, Color(0.85, 0.92, 1.0, 0.9))
+		draw_string(font, Vector2(rect.position.x, rect.position.y + 92), "Rotate the center router with A/D (or ◄/►) so the path points to that symbol.", HORIZONTAL_ALIGNMENT_CENTER, int(box_w), 13, Color(0.0, 1.0, 0.7, 0.95))
+		draw_string(font, Vector2(rect.position.x, rect.position.y + 116), "Starts with 3 guided practice signals before the 90s score attack begins.", HORIZONTAL_ALIGNMENT_CENTER, int(box_w), 12, Color(1.0, 0.75, 0.3, 0.85))
+		draw_string(font, Vector2(rect.position.x, rect.position.y + 140), "3 Misroute overloads terminate the run.", HORIZONTAL_ALIGNMENT_CENTER, int(box_w), 12, Color(0.7, 0.8, 0.9, 0.75))
+		draw_string(font, Vector2(rect.position.x, rect.position.y + 182), "USE PORTAL LAUNCH CONTROLS TO INITIALIZE RUN", HORIZONTAL_ALIGNMENT_CENTER, int(box_w), 14, Color(0.0, 0.94, 1.0, 0.95))
 	
 	elif current_state == "paused":
 		var box_w: float = 360.0

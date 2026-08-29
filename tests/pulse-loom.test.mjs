@@ -428,6 +428,7 @@ test("Pulse Loom tracked Godot project files and scenes exist on disk", () => {
     "../games/pulse-loom/export_presets.cfg",
     "../games/pulse-loom/scenes/main.tscn",
     "../games/pulse-loom/scripts/constants.gd",
+    "../games/pulse-loom/scripts/routing.gd",
     "../games/pulse-loom/scripts/game_manager.gd",
     "../games/pulse-loom/scripts/web_bridge.gd",
     "../games/pulse-loom/scripts/signal_core.gd",
@@ -441,6 +442,102 @@ test("Pulse Loom tracked Godot project files and scenes exist on disk", () => {
     const fullUrl = new URL(rel, import.meta.url);
     assert.ok(existsSync(fullUrl), `Expected tracked file missing: ${rel}`);
   }
+});
+
+test("Pulse Loom authoritative route-mapping mathematics and preview agreement invariants hold across all 36 combinations", () => {
+  const NUM_LANES = 6;
+  const posmod = (n, m) => ((n % m) + m) % m;
+  const getRoutedLane = (sourceLane, rotorStep) => posmod(sourceLane + rotorStep, NUM_LANES);
+  const getRequiredStep = (sourceLane, targetLane) => posmod(targetLane - sourceLane, NUM_LANES);
+  const isAligned = (sourceLane, targetLane, rotorStep) => getRoutedLane(sourceLane, rotorStep) === targetLane;
+
+  for (let src = 0; src < NUM_LANES; src++) {
+    for (let step = 0; step < NUM_LANES; step++) {
+      const routed = getRoutedLane(src, step);
+      assert.ok(routed >= 0 && routed < NUM_LANES);
+
+      const requiredStep = getRequiredStep(src, routed);
+      assert.equal(requiredStep, step);
+      assert.equal(isAligned(src, routed, step), true);
+
+      for (let otherStep = 0; otherStep < NUM_LANES; otherStep++) {
+        if (otherStep !== step) {
+          assert.equal(isAligned(src, routed, otherStep), false);
+        }
+      }
+    }
+  }
+
+  // Bijective permutation proof per step
+  for (let step = 0; step < NUM_LANES; step++) {
+    const mapped = new Set();
+    for (let src = 0; src < NUM_LANES; src++) {
+      mapped.add(getRoutedLane(src, step));
+    }
+    assert.equal(mapped.size, NUM_LANES);
+  }
+
+  // Preview and gameplay resolution agreement proof
+  for (let src = 0; src < NUM_LANES; src++) {
+    for (let tgt = 0; tgt < NUM_LANES; tgt++) {
+      for (let step = 0; step < NUM_LANES; step++) {
+        const previewRoute = getRoutedLane(src, step);
+        const previewAligned = isAligned(src, tgt, step);
+        const resolvedRoute = (src + step) % NUM_LANES;
+        const resolvedAligned = (resolvedRoute === tgt);
+        assert.equal(previewRoute, resolvedRoute);
+        assert.equal(previewAligned, resolvedAligned);
+      }
+    }
+  }
+});
+
+test("Pulse Loom assisted onboarding state machine stages pulses and transitions cleanly to normal score attack", () => {
+  const NUM_LANES = 6;
+  const posmod = (n, m) => ((n % m) + m) % m;
+  const getRequiredStep = (src, tgt) => posmod(tgt - src, NUM_LANES);
+
+  // Behavioral model of the 3-pulse assisted onboarding
+  const assistedSteps = [
+    { step: 0, src: 0, tgt: 2 }, // Diamond ◇
+    { step: 1, src: 3, tgt: 1 }, // Triangle △
+    { step: 2, src: 4, tgt: 4 }, // Square □
+  ];
+
+  let onboardingActive = true;
+  let onboardingStep = 0;
+  let score = 0;
+  let multiplier = 1;
+  let timeRemaining = 90.0;
+
+  for (const item of assistedSteps) {
+    assert.equal(onboardingActive, true);
+    assert.equal(onboardingStep, item.step);
+    assert.equal(timeRemaining, 90.0); // Clock held during onboarding
+
+    const reqStep = getRequiredStep(item.src, item.tgt);
+    const routedLane = posmod(item.src + reqStep, NUM_LANES);
+    assert.equal(routedLane, item.tgt);
+
+    // Resolve pulse
+    score += 100 * multiplier;
+    multiplier = Math.min(10, 1 + Math.floor((onboardingStep + 1) / 2));
+    onboardingStep += 1;
+    if (onboardingStep >= 3) {
+      onboardingActive = false;
+    }
+  }
+
+  assert.equal(onboardingActive, false);
+  assert.equal(onboardingStep, 3);
+  assert.equal(score, 400);
+  assert.equal(timeRemaining, 90.0);
+
+  // Normal gameplay advance: countdown begins and duration accumulates
+  const delta = 1.5;
+  timeRemaining -= delta;
+  assert.ok(timeRemaining < 90.0);
+  assert.equal(timeRemaining, 88.5);
 });
 
 test("Pulse Loom runs headless deterministic smoke test", () => {

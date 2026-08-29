@@ -5,7 +5,7 @@
   "sdk": "0.1.0",
   "status": "prototype",
   "title": "Pulse Loom",
-  "summary": "Align the central signal conduit to route incoming glyph pulses across six radial lanes in a 90-second score attack.",
+  "summary": "Rotate the central router to guide incoming signals to their matching target symbols in a 90-second score attack.",
   "engine": { "name": "Godot", "version": "4.6.3", "rendering": "gl_compatibility" },
   "entry": "/src/games/pulse-loom/PulseLoomGate.tsx",
   "presentation": { "orientation": "landscape", "aspectRatio": "16:9", "accent": "#00f0ff" },
