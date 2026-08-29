@@ -37,15 +37,16 @@ export const games: Game[] = [
     playable: true
   },
   {
-    slug: "echo-vector",
-    eyebrow: "Concept 02",
-    title: "Echo Vector",
-    description: "Your previous runs return as temporal echoes—sometimes allies, sometimes moving hazards you authored yourself.",
-    genre: "Rhythm tactics",
-    session: "3 min",
-    mode: "concept",
-    accent: "cyan",
-    tags: ["2D", "Rhythm", "Mastery"]
+    slug: "hullwatch",
+    eyebrow: "Owner Preview / Defense Station 03",
+    title: "Hullwatch",
+    description: "Take the dorsal gun station of a capital ship under pursuit. Break strike craft and intercept torpedoes before they reach the hull.",
+    genre: "Defensive gunner",
+    session: "90 sec",
+    mode: "visual-gate",
+    accent: "violet",
+    tags: ["3D", "Gunner", "Combat"],
+    playable: true
   },
   {
     slug: "prism-siege",
