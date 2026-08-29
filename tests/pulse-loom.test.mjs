@@ -497,39 +497,37 @@ test("Pulse Loom assisted onboarding state machine stages pulses and transitions
   const posmod = (n, m) => ((n % m) + m) % m;
   const getRequiredStep = (src, tgt) => posmod(tgt - src, NUM_LANES);
 
-  // Behavioral model of the 3-pulse assisted onboarding
-  const assistedSteps = [
-    { step: 0, src: 0, tgt: 2 }, // Amber Diamond ◇
-    { step: 1, src: 2, tgt: 3 }, // Emerald Green Square □
-    { step: 2, src: 5, tgt: 4 }, // Crimson Red Circle ○
-  ];
-
+  // Behavioral model of the 3-step assisted onboarding state machine
+  const TOTAL_ASSISTED_STEPS = 3;
   let onboardingActive = true;
   let onboardingStep = 0;
   let score = 0;
   let multiplier = 1;
   let timeRemaining = 90.0;
 
-  for (const item of assistedSteps) {
+  for (let step = 0; step < TOTAL_ASSISTED_STEPS; step++) {
     assert.equal(onboardingActive, true);
-    assert.equal(onboardingStep, item.step);
+    assert.equal(onboardingStep, step);
     assert.equal(timeRemaining, 90.0); // Clock held during onboarding
 
-    const reqStep = getRequiredStep(item.src, item.tgt);
-    const routedLane = posmod(item.src + reqStep, NUM_LANES);
-    assert.equal(routedLane, item.tgt);
+    // Model generic pulse routing and alignment at each assisted step
+    const src = (step * 2) % NUM_LANES;
+    const tgt = (step * 2 + 2) % NUM_LANES;
+    const reqStep = getRequiredStep(src, tgt);
+    const routedLane = posmod(src + reqStep, NUM_LANES);
+    assert.equal(routedLane, tgt);
 
     // Resolve pulse
     score += 100 * multiplier;
     multiplier = Math.min(10, 1 + Math.floor((onboardingStep + 1) / 2));
     onboardingStep += 1;
-    if (onboardingStep >= 3) {
+    if (onboardingStep >= TOTAL_ASSISTED_STEPS) {
       onboardingActive = false;
     }
   }
 
   assert.equal(onboardingActive, false);
-  assert.equal(onboardingStep, 3);
+  assert.equal(onboardingStep, TOTAL_ASSISTED_STEPS);
   assert.equal(score, 400);
   assert.equal(timeRemaining, 90.0);
 
@@ -540,7 +538,7 @@ test("Pulse Loom assisted onboarding state machine stages pulses and transitions
   assert.equal(timeRemaining, 88.5);
 });
 
-test("Pulse Loom repeated target glyph occurrences and retry mechanics maintain strict preview, highlight, and resolution agreement", () => {
+test("Pulse Loom repeated target glyph occurrences, retry mechanics, and stale-preview lifecycle maintain strict invariants", () => {
   const NUM_LANES = 6;
   const posmod = (n, m) => ((n % m) + m) % m;
   const getRoutedLane = (sourceLane, rotorStep) => posmod(sourceLane + rotorStep, NUM_LANES);
@@ -548,19 +546,21 @@ test("Pulse Loom repeated target glyph occurrences and retry mechanics maintain 
   const isAligned = (sourceLane, targetLane, rotorStep) => getRoutedLane(sourceLane, rotorStep) === targetLane;
 
   const GLYPHS = [
-    { type: 0, name: "HEXAGON", symbol: "⬡" },
-    { type: 1, name: "TRIANGLE", symbol: "△" },
-    { type: 2, name: "DIAMOND", symbol: "◇" },
-    { type: 3, name: "SQUARE", symbol: "□" },
-    { type: 4, name: "CIRCLE", symbol: "○" },
-    { type: 5, name: "CROSS", symbol: "✕" },
+    { type: 0, name: "HEXAGON", symbol: "⬡", color: "Cyan" },
+    { type: 1, name: "TRIANGLE", symbol: "△", color: "Violet" },
+    { type: 2, name: "DIAMOND", symbol: "◇", color: "Amber" },
+    { type: 3, name: "SQUARE", symbol: "□", color: "Emerald" },
+    { type: 4, name: "CIRCLE", symbol: "○", color: "Crimson" },
+    { type: 5, name: "CROSS", symbol: "✕", color: "Azure" },
   ];
 
-  // Verify glyph constants and symbol-first identity
+  // Verify glyph constants and canonical mapping
   assert.equal(GLYPHS[3].name, "SQUARE");
   assert.equal(GLYPHS[3].symbol, "□");
+  assert.equal(GLYPHS[3].color, "Emerald");
   assert.equal(GLYPHS[4].name, "CIRCLE");
   assert.equal(GLYPHS[4].symbol, "○");
+  assert.equal(GLYPHS[4].color, "Crimson");
 
   // Verify that repeated target occurrences (1st, 2nd, 3rd time) never mutate mapping rules
   for (const glyph of GLYPHS) {
@@ -586,7 +586,7 @@ test("Pulse Loom repeated target glyph occurrences and retry mechanics maintain 
   }
 
   // Verify assisted onboarding retry state invariants (misroute -> retry -> success)
-  let assistedStep = 1; // Testing step 1 (Green Square □)
+  let assistedStep = 1; // Testing step 1 (Emerald Square □)
   let overloads = 0;
   const targetSquare = 3;
   const srcLane = 2;
@@ -606,6 +606,53 @@ test("Pulse Loom repeated target glyph occurrences and retry mechanics maintain 
   assert.equal(getRoutedLane(srcLane, correctStep), targetSquare);
   assistedStep += 1;
   assert.equal(assistedStep, 2);
+
+  // === Stale-Preview Lifecycle Model ===
+  // Pulse A nearest -> preview A; after A removed, Pulse B nearest -> preview B; no pulse -> clear; repeated pulse -> refresh
+  let pulses = [
+    { id: "A", src: 0, tgt: 2, dist: 150 },
+    { id: "B", src: 2, tgt: 3, dist: 250 },
+  ];
+  const getNearest = (list) => {
+    if (list.length === 0) return null;
+    return list.reduce((min, p) => (p.dist < min.dist ? p : min), list[0]);
+  };
+
+  // 1. Pulse A nearest -> preview A
+  let nearest = getNearest(pulses);
+  assert.equal(nearest?.id, "A");
+  assert.equal(nearest?.src, 0);
+  assert.equal(nearest?.tgt, 2);
+
+  // 2. A resolves -> removed, B becomes nearest -> preview B
+  pulses = pulses.filter((p) => p.id !== "A");
+  nearest = getNearest(pulses);
+  assert.equal(nearest?.id, "B");
+  assert.equal(nearest?.src, 2);
+  assert.equal(nearest?.tgt, 3);
+
+  // 3. B resolves -> removed, no pulses -> clear
+  pulses = pulses.filter((p) => p.id !== "B");
+  nearest = getNearest(pulses);
+  assert.equal(nearest, null);
+
+  // 4. Repeated Square from another source (src 4, tgt 3) -> refresh with no stale state
+  pulses.push({ id: "C_Square", src: 4, tgt: 3, dist: 180 });
+  nearest = getNearest(pulses);
+  assert.equal(nearest?.id, "C_Square");
+  assert.equal(nearest?.src, 4);
+  assert.equal(nearest?.tgt, 3);
+
+  // Clear C
+  pulses = [];
+  assert.equal(getNearest(pulses), null);
+
+  // 5. Repeated Circle from another source (src 1, tgt 4) -> refresh with no stale state
+  pulses.push({ id: "D_Circle", src: 1, tgt: 4, dist: 200 });
+  nearest = getNearest(pulses);
+  assert.equal(nearest?.id, "D_Circle");
+  assert.equal(nearest?.src, 1);
+  assert.equal(nearest?.tgt, 4);
 });
 
 test("Pulse Loom runs headless deterministic smoke test", () => {
