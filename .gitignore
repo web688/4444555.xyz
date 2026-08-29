@@ -1,5 +1,7 @@
 node_modules/
 dist/
+dist-test/
+apps/portal/dist-test/
 .DS_Store
 *.local
 *.log
@@ -10,4 +12,14 @@ coverage/
 GIT_Token.txt
 all connection info.txt
 *.zip
+
+# AI Factory internal session state
+.ai-factory/
+
+# Godot generated files & caches
+.godot/
+games/**/.godot/
+games/**/export/
+apps/portal/public/games/
+
 

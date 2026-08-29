@@ -1,0 +1,43 @@
+[gd_scene load_steps=8 format=3 uid="uid://pulse_loom_main_001"]
+
+[ext_resource type="Script" path="res://scripts/game_manager.gd" id="1_gm"]
+[ext_resource type="Script" path="res://scripts/background.gd" id="2_bg"]
+[ext_resource type="Script" path="res://scripts/radar_lanes.gd" id="3_rl"]
+[ext_resource type="Script" path="res://scripts/signal_core.gd" id="4_sc"]
+[ext_resource type="Script" path="res://scripts/audio_synth.gd" id="5_as"]
+[ext_resource type="Script" path="res://scripts/web_bridge.gd" id="6_wb"]
+[ext_resource type="Script" path="res://scripts/ui_overlay.gd" id="7_ui"]
+
+[node name="Main" type="Node2D"]
+script = ExtResource("1_gm")
+
+[node name="Background" type="Node2D" parent="."]
+script = ExtResource("2_bg")
+
+[node name="RadarLanes" type="Node2D" parent="."]
+position = Vector2(640, 360)
+script = ExtResource("3_rl")
+
+[node name="SignalCore" type="Node2D" parent="."]
+position = Vector2(640, 360)
+script = ExtResource("4_sc")
+
+[node name="PulseContainer" type="Node2D" parent="."]
+position = Vector2(640, 360)
+
+[node name="AudioSynth" type="Node" parent="."]
+script = ExtResource("5_as")
+
+[node name="WebBridge" type="Node" parent="."]
+script = ExtResource("6_wb")
+
+[node name="UIOverlay" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_right = 1280.0
+offset_bottom = 720.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("7_ui")

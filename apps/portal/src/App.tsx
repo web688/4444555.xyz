@@ -2,16 +2,19 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { games } from "./catalog";
 import { GRAVITY_COURIER_PROGRESS_EVENT, loadCourierProgress, type CourierProgress } from "./games/gravity-courier/progress";
 import { ORBITAL_SLINGSHOT_PROGRESS_EVENT, loadSlingshotProgress, type SlingshotProgress } from "./games/orbital-slingshot/progress";
+import { PULSE_LOOM_PROGRESS_EVENT, loadPulseLoomProgress, type PulseLoomProgress } from "./games/pulse-loom/progress";
 
 const Arrow = () => <span aria-hidden="true">↗</span>;
 const GravityCourierGate = lazy(() => import("./games/gravity-courier/GravityCourierGate"));
 const OrbitalSlingshotGate = lazy(() => import("./games/orbital-slingshot/OrbitalSlingshotGate"));
+const PulseLoomGate = lazy(() => import("./games/pulse-loom/PulseLoomGate"));
 
 export function App() {
   const [query, setQuery] = useState("");
   const [activeGame, setActiveGame] = useState<string | null>(null);
   const [courierProgress, setCourierProgress] = useState(loadCourierProgress);
   const [slingshotProgress, setSlingshotProgress] = useState(loadSlingshotProgress);
+  const [pulseLoomProgress, setPulseLoomProgress] = useState(loadPulseLoomProgress);
 
   useEffect(() => {
     const syncCourier = (event?: Event) => {
@@ -22,15 +25,23 @@ export function App() {
       const detail = (event as CustomEvent<SlingshotProgress> | undefined)?.detail;
       setSlingshotProgress(detail ?? loadSlingshotProgress());
     };
+    const syncPulseLoom = (event?: Event) => {
+      const detail = (event as CustomEvent<PulseLoomProgress> | undefined)?.detail;
+      setPulseLoomProgress(detail ?? loadPulseLoomProgress());
+    };
     window.addEventListener(GRAVITY_COURIER_PROGRESS_EVENT, syncCourier);
     window.addEventListener(ORBITAL_SLINGSHOT_PROGRESS_EVENT, syncSlingshot);
+    window.addEventListener(PULSE_LOOM_PROGRESS_EVENT, syncPulseLoom);
     window.addEventListener("storage", syncCourier);
     window.addEventListener("storage", syncSlingshot);
+    window.addEventListener("storage", syncPulseLoom);
     return () => {
       window.removeEventListener(GRAVITY_COURIER_PROGRESS_EVENT, syncCourier);
       window.removeEventListener(ORBITAL_SLINGSHOT_PROGRESS_EVENT, syncSlingshot);
+      window.removeEventListener(PULSE_LOOM_PROGRESS_EVENT, syncPulseLoom);
       window.removeEventListener("storage", syncCourier);
       window.removeEventListener("storage", syncSlingshot);
+      window.removeEventListener("storage", syncPulseLoom);
     };
   }, []);
   const visibleGames = useMemo(() => {
@@ -108,6 +119,13 @@ export function App() {
                       <div className="recent-runs"><span>RECENT</span>{slingshotProgress.recentRuns.length === 0 ? <small>NO RUNS YET</small> : slingshotProgress.recentRuns.slice(0, 3).map((run) => <i className={run.medal} key={run.id} title={`${run.medal} · ${run.score.toLocaleString("en-US")}`}>{run.score.toLocaleString("en-US")}</i>)}</div>
                     </section>
                   )}
+                  {game.slug === "pulse-loom" && (
+                    <section className="flight-record" aria-label="Pulse Loom local flight record">
+                      <div><span>LOCAL BEST</span><strong>{pulseLoomProgress.bestScore.toLocaleString("en-US").padStart(7, "0")}</strong></div>
+                      <div><span>COMPLETIONS</span><strong>{pulseLoomProgress.completions} / {pulseLoomProgress.totalRuns}</strong></div>
+                      <div className="recent-runs"><span>RECENT</span>{pulseLoomProgress.recentRuns.length === 0 ? <small>NO RUNS YET</small> : pulseLoomProgress.recentRuns.slice(0, 3).map((run) => <i className={run.medal} key={run.id} title={`${run.medal} · ${run.score.toLocaleString("en-US")}`}>{run.score.toLocaleString("en-US")}</i>)}</div>
+                    </section>
+                  )}
                   <div className="tag-row">{game.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
                   <footer><span>{game.genre}</span><span>{game.session}</span><button aria-label={game.playable ? `Launch ${game.title}` : `View ${game.title} concept`} disabled={!game.playable} onClick={() => game.playable && setActiveGame(game.slug)}><Arrow /></button></footer>
                 </div>
@@ -142,6 +160,11 @@ export function App() {
       {activeGame === "orbital-slingshot" && (
         <Suspense fallback={<div className="gate-loading" role="status"><span />Loading orbital trajectory…</div>}>
           <OrbitalSlingshotGate onExit={() => setActiveGame(null)} />
+        </Suspense>
+      )}
+      {activeGame === "pulse-loom" && (
+        <Suspense fallback={<div className="gate-loading" role="status"><span />Loading signal stream…</div>}>
+          <PulseLoomGate onExit={() => setActiveGame(null)} />
         </Suspense>
       )}
     </div>

@@ -15,4 +15,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Setup Godot 4.6.3
+        run: bash scripts/setup-godot-ci.sh
       - run: npm run verify
+

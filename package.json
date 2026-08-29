@@ -6,8 +6,10 @@
   "workspaces": ["apps/*", "packages/*"],
   "engines": { "node": ">=22.13.0" },
   "scripts": {
-    "dev": "vite apps/portal --config apps/portal/vite.config.ts",
-    "build": "npm run build --workspace @4444555/portal",
+    "dev": "node scripts/export-pulse-loom.mjs && vite apps/portal --config apps/portal/vite.config.ts",
+    "export:pulse-loom": "node scripts/export-pulse-loom.mjs",
+    "test:godot": "node scripts/test-godot.mjs",
+    "build": "node scripts/export-pulse-loom.mjs && npm run build --workspace @4444555/portal",
     "typecheck": "tsc --noEmit -p packages/game-sdk/tsconfig.json && tsc --noEmit -p apps/portal/tsconfig.json",
     "test": "node --test tests/*.test.mjs",
     "verify": "npm run typecheck && npm test && npm run build"

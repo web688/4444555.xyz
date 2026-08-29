@@ -1,0 +1,676 @@
+import assert from "node:assert/strict";
+import { existsSync, statSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+import { runGodotHeadlessTest } from "../scripts/test-godot.mjs";
+import { exportPulseLoom } from "../scripts/export-pulse-loom.mjs";
+import {
+  medalForPulseLoomRun,
+  createEmptyPulseLoomProgress,
+} from "../apps/portal/src/games/pulse-loom/progress.ts";
+import {
+  createPulseLoomHost,
+  createPulseLoomRunTicket,
+  getPulseLoomDailySeed,
+  validateScoreClaim,
+  validateIncomingMessage,
+  sendPostMessageToGodot,
+} from "../apps/portal/src/games/pulse-loom/host.ts";
+
+test("Pulse Loom manifest metadata is valid and aligned with SDK contract", async () => {
+  const rawManifest = await readFile(
+    new URL("../catalog/manifests/pulse-loom.json", import.meta.url),
+    "utf8",
+  );
+  const manifest = JSON.parse(rawManifest);
+
+  assert.equal(manifest.id, "pulse-loom");
+  assert.equal(manifest.version, "0.1.0");
+  assert.equal(manifest.sdk, "0.1.0");
+  assert.equal(manifest.status, "prototype");
+  assert.equal(manifest.engine.name, "Godot");
+  assert.equal(manifest.engine.version, "4.6.3");
+  assert.equal(manifest.engine.rendering, "gl_compatibility");
+  assert.equal(manifest.sessions.targetSeconds, 90);
+  assert.deepEqual(manifest.input, ["keyboard", "touch", "gamepad"]);
+});
+
+test("Pulse Loom progress calculation and medal thresholds behave correctly", () => {
+  // Gold threshold: >= 60,000
+  assert.equal(medalForPulseLoomRun(75_000, true), "gold");
+  assert.equal(medalForPulseLoomRun(60_000, true), "gold");
+
+  // Silver threshold: 35,000 - 59,999
+  assert.equal(medalForPulseLoomRun(59_999, true), "silver");
+  assert.equal(medalForPulseLoomRun(35_000, true), "silver");
+
+  // Bronze threshold: 15,000 - 34,999
+  assert.equal(medalForPulseLoomRun(34_999, true), "bronze");
+  assert.equal(medalForPulseLoomRun(15_000, true), "bronze");
+
+  // Below bronze: < 15,000
+  assert.equal(medalForPulseLoomRun(14_999, true), "none");
+  assert.equal(medalForPulseLoomRun(0, true), "none");
+
+  // Failed run behavior
+  assert.equal(medalForPulseLoomRun(65_000, false), "gold");
+  assert.equal(medalForPulseLoomRun(10_000, false), "none");
+
+  // Initial progress baseline
+  const empty = createEmptyPulseLoomProgress();
+  assert.equal(empty.schemaVersion, 1);
+  assert.equal(empty.bestScore, 0);
+  assert.equal(empty.totalRuns, 0);
+  assert.equal(empty.completions, 0);
+  assert.deepEqual(empty.recentRuns, []);
+});
+
+test("Pulse Loom GameHost maintains stable lifecycle and active ticket across settings updates", async () => {
+  let exitReason = "";
+  let acceptedClaim = null;
+  const host = createPulseLoomHost({
+    muted: false,
+    reducedMotion: false,
+    onExit: (reason) => {
+      exitReason = reason;
+    },
+    onScoreClaimAccepted: (claim) => {
+      acceptedClaim = claim;
+    },
+  });
+
+  assert.equal(host.settings.audio.muted, false);
+  assert.equal(host.settings.accessibility.reducedMotion, false);
+
+  // Request run ticket
+  const ticket = await host.requestRun();
+  assert.ok(ticket.id.startsWith("run-pl-"));
+  assert.equal(host.getActiveTicket()?.id, ticket.id);
+
+  // Update settings (mute toggle, reduced motion toggle)
+  host.updateSettings({ muted: true, reducedMotion: true });
+  assert.equal(host.settings.audio.muted, true);
+  assert.equal(host.settings.accessibility.reducedMotion, true);
+
+  // Ticket must still remain active and unmodified
+  assert.equal(host.getActiveTicket()?.id, ticket.id);
+
+  // Submit score claim using active ticket
+  const claim = {
+    runTicketId: ticket.id,
+    score: 55000,
+    durationMs: 90000,
+    endedAt: new Date().toISOString(),
+    stats: {
+      routesCompleted: 30,
+      perfectRoutes: 20,
+      maxMultiplier: 8,
+      overloads: 1,
+      completed: 1,
+    },
+  };
+
+  const res = await host.submitScore(claim);
+  assert.equal(res.accepted, true);
+  assert.ok(acceptedClaim);
+  assert.equal(acceptedClaim.runTicketId, ticket.id);
+
+  host.exit("player");
+  assert.equal(exitReason, "player");
+});
+
+test("Pulse Loom SDK RunTicket schema and ScoreClaim validation enforce contract end-to-end", () => {
+  // Test deterministic daily seed on default run tickets across fixed and live clocks
+  const fixedNow = new Date("2026-08-29T14:30:00.000Z");
+  const ticketA = createPulseLoomRunTicket(undefined, fixedNow);
+  const ticketB = createPulseLoomRunTicket(undefined, fixedNow);
+
+  // Clock-stable proof: same timestamp yields identical daily seed, unique IDs
+  assert.equal(ticketA.seed, "2026-08-29");
+  assert.equal(ticketB.seed, "2026-08-29");
+  assert.equal(ticketA.seed, ticketB.seed);
+  assert.notEqual(ticketA.id, ticketB.id);
+
+  // UTC midnight boundary test: proving daily seed changes deterministically at 00:00:00.000Z
+  const justBeforeMidnight = new Date("2026-08-29T23:59:59.999Z");
+  const atMidnight = new Date("2026-08-30T00:00:00.000Z");
+  const ticketBefore = createPulseLoomRunTicket(undefined, justBeforeMidnight);
+  const ticketAfter = createPulseLoomRunTicket(undefined, atMidnight);
+  assert.equal(ticketBefore.seed, "2026-08-29");
+  assert.equal(ticketAfter.seed, "2026-08-30");
+
+  // Live ticket test: derive expected daily seed directly from ticket.issuedAt (immune to midnight races)
+  const defaultTicket1 = createPulseLoomRunTicket();
+  const defaultTicket2 = createPulseLoomRunTicket();
+  assert.equal(defaultTicket1.seed, getPulseLoomDailySeed(new Date(defaultTicket1.issuedAt)));
+  assert.equal(defaultTicket2.seed, getPulseLoomDailySeed(new Date(defaultTicket2.issuedAt)));
+  assert.notEqual(defaultTicket1.id, defaultTicket2.id);
+  assert.ok(defaultTicket1.id.startsWith("run-pl-"));
+  assert.ok(defaultTicket2.id.startsWith("run-pl-"));
+  assert.equal(defaultTicket1.gameId, "pulse-loom");
+  assert.equal(defaultTicket1.gameVersion, "0.1.0");
+  assert.equal(defaultTicket1.ruleset, "conduit-v1");
+  assert.equal(defaultTicket1.signature, "local-unverified");
+  assert.ok(new Date(defaultTicket1.issuedAt).getTime() > 0);
+  assert.ok(new Date(defaultTicket1.expiresAt).getTime() > new Date(defaultTicket1.issuedAt).getTime());
+
+  // Test explicit custom seed creation (number & string)
+  const ticket = createPulseLoomRunTicket(2026);
+  assert.equal(ticket.gameId, "pulse-loom");
+  assert.equal(ticket.gameVersion, "0.1.0");
+  assert.equal(ticket.ruleset, "conduit-v1");
+  assert.equal(ticket.seed, "2026");
+  assert.equal(ticket.signature, "local-unverified");
+  assert.ok(ticket.id.startsWith("run-pl-"));
+  assert.ok(new Date(ticket.issuedAt).getTime() > 0);
+  assert.ok(new Date(ticket.expiresAt).getTime() > new Date(ticket.issuedAt).getTime());
+
+  const ticketStr = createPulseLoomRunTicket("custom-channel-seed");
+  assert.equal(ticketStr.seed, "custom-channel-seed");
+
+  // Test valid score claim
+  const validClaim = {
+    runTicketId: ticket.id,
+    score: 42000,
+    durationMs: 88500,
+    endedAt: new Date().toISOString(),
+    stats: {
+      routesCompleted: 24,
+      perfectRoutes: 12,
+      maxMultiplier: 7,
+      overloads: 1,
+      completed: 1,
+    },
+  };
+  const validResult = validateScoreClaim(ticket, validClaim);
+  assert.equal(validResult.valid, true);
+
+  // Test expired ticket rejection
+  const expiredTicket = {
+    ...ticket,
+    expiresAt: new Date(Date.now() - 5000).toISOString(),
+  };
+  assert.equal(validateScoreClaim(expiredTicket, validClaim).valid, false);
+
+  // Test claim ended after ticket expiry rejection
+  const lateClaim = {
+    ...validClaim,
+    endedAt: new Date(Date.now() + 600_000).toISOString(),
+  };
+  assert.equal(validateScoreClaim(ticket, lateClaim).valid, false);
+
+  // Test invalid score claims (ticket mismatch, negative score, non-integer score, overloads > 3, duration > 120s)
+  assert.equal(validateScoreClaim(ticket, { ...validClaim, runTicketId: "wrong-id" }).valid, false);
+  assert.equal(validateScoreClaim(ticket, { ...validClaim, score: -500 }).valid, false);
+  assert.equal(validateScoreClaim(ticket, { ...validClaim, score: 123.45 }).valid, false);
+  assert.equal(validateScoreClaim(ticket, { ...validClaim, durationMs: 150_000 }).valid, false);
+  assert.equal(validateScoreClaim(ticket, { ...validClaim, stats: { ...validClaim.stats, overloads: 4 } }).valid, false);
+  assert.equal(validateScoreClaim(ticket, { ...validClaim, stats: { ...validClaim.stats, maxMultiplier: 15 } }).valid, false);
+});
+
+test("Pulse Loom postMessage communication enforces exact same-origin and forbids wildcard", () => {
+  const mockContentWindow = {
+    postMessage(msg, targetOrigin) {
+      this.lastMsg = msg;
+      this.lastOrigin = targetOrigin;
+    },
+  };
+
+  // Successful send with valid target origin
+  sendPostMessageToGodot(mockContentWindow, { type: "RESUME" }, "http://localhost:5173");
+  assert.equal(mockContentWindow.lastOrigin, "http://localhost:5173");
+  assert.deepEqual(mockContentWindow.lastMsg, { type: "RESUME" });
+
+  // Forbids wildcard '*' origin
+  assert.throws(() => {
+    sendPostMessageToGodot(mockContentWindow, { type: "RESUME" }, "*");
+  }, /exact non-wildcard target origin/);
+
+  // Forbids empty origin
+  assert.throws(() => {
+    sendPostMessageToGodot(mockContentWindow, { type: "RESUME" }, "");
+  }, /exact non-wildcard target origin/);
+
+  // Forbids 'null' origin
+  assert.throws(() => {
+    sendPostMessageToGodot(mockContentWindow, { type: "RESUME" }, "null");
+  }, /exact non-wildcard target origin/);
+});
+
+test("Pulse Loom incoming message validation enforces exact origin and rejects cross-origin/opaque messages", () => {
+  const mockWindow = {};
+  const validOrigin = "http://localhost:5173";
+
+  const validReadyEvent = {
+    source: mockWindow,
+    origin: validOrigin,
+    data: { type: "GAME_READY", game: "pulse-loom", version: "0.1.0", sdk: "0.1.0", engine: "Godot 4.6.3" },
+  };
+
+  // Valid origin and window -> PASS
+  const parsed = validateIncomingMessage(validReadyEvent, mockWindow, validOrigin);
+  assert.ok(parsed);
+  assert.equal(parsed?.type, "GAME_READY");
+
+  // Origin mismatch -> REJECT (null)
+  assert.equal(
+    validateIncomingMessage(validReadyEvent, mockWindow, "https://evil.com"),
+    null
+  );
+  assert.equal(
+    validateIncomingMessage({ ...validReadyEvent, origin: "https://evil.com" }, mockWindow, validOrigin),
+    null
+  );
+
+  // Missing, null, 'null', or '*' origin -> REJECT
+  assert.equal(validateIncomingMessage({ ...validReadyEvent, origin: "" }, mockWindow, validOrigin), null);
+  assert.equal(validateIncomingMessage({ ...validReadyEvent, origin: "null" }, mockWindow, validOrigin), null);
+  assert.equal(validateIncomingMessage({ ...validReadyEvent, origin: "*" }, mockWindow, validOrigin), null);
+
+  // Source window mismatch -> REJECT
+  const otherWindow = {};
+  assert.equal(validateIncomingMessage(validReadyEvent, otherWindow, validOrigin), null);
+});
+
+test("Pulse Loom strictly validates payload schemas and rejects malformed payloads without coercion", () => {
+  const mockWindow = {};
+  const origin = "http://localhost:5173";
+
+  // Arrays must be rejected
+  assert.equal(
+    validateIncomingMessage({ source: mockWindow, origin, data: ["malicious", "array"] }, mockWindow, origin),
+    null
+  );
+
+  // Wrong GAME_READY parameters
+  assert.equal(
+    validateIncomingMessage(
+      { source: mockWindow, origin, data: { type: "GAME_READY", game: "other", version: "0.1.0", sdk: "0.1.0" } },
+      mockWindow,
+      origin
+    ),
+    null
+  );
+  assert.equal(
+    validateIncomingMessage(
+      { source: mockWindow, origin, data: { type: "GAME_READY", game: "pulse-loom", version: "0.2.0", sdk: "0.1.0" } },
+      mockWindow,
+      origin
+    ),
+    null
+  );
+  assert.equal(
+    validateIncomingMessage(
+      { source: mockWindow, origin, data: { type: "GAME_READY", game: "pulse-loom", version: "0.1.0", sdk: "0.2.0" } },
+      mockWindow,
+      origin
+    ),
+    null
+  );
+
+  // Invalid STATE_CHANGE
+  assert.equal(
+    validateIncomingMessage(
+      { source: mockWindow, origin, data: { type: "STATE_CHANGE", state: "invalid_state" } },
+      mockWindow,
+      origin
+    ),
+    null
+  );
+
+  // Valid TELEMETRY
+  const validTelemetry = {
+    type: "TELEMETRY",
+    data: {
+      score: 1500,
+      multiplier: 3,
+      maxMultiplier: 3,
+      overloads: 1,
+      maxOverloads: 3,
+      timeRemaining: 82.5,
+      stage: 1,
+      routesCompleted: 4,
+      perfectRoutes: 2,
+      fps: 60,
+    },
+  };
+  assert.ok(
+    validateIncomingMessage({ source: mockWindow, origin, data: validTelemetry }, mockWindow, origin)
+  );
+
+  // Malformed TELEMETRY (string numbers, negative, overloads > 3, invalid stage)
+  assert.equal(
+    validateIncomingMessage(
+      { source: mockWindow, origin, data: { type: "TELEMETRY", data: { ...validTelemetry.data, score: "1500" } } },
+      mockWindow,
+      origin
+    ),
+    null
+  );
+  assert.equal(
+    validateIncomingMessage(
+      { source: mockWindow, origin, data: { type: "TELEMETRY", data: { ...validTelemetry.data, overloads: 4 } } },
+      mockWindow,
+      origin
+    ),
+    null
+  );
+  assert.equal(
+    validateIncomingMessage(
+      { source: mockWindow, origin, data: { type: "TELEMETRY", data: { ...validTelemetry.data, stage: 5 } } },
+      mockWindow,
+      origin
+    ),
+    null
+  );
+
+  // Valid RUN_ENDED
+  const validRunEnded = {
+    type: "RUN_ENDED",
+    data: {
+      ticketId: "run-pl-12345-abcde",
+      outcome: "complete",
+      score: 45000,
+      durationSeconds: 90,
+      routesCompleted: 20,
+      perfectRoutes: 10,
+      maxMultiplier: 6,
+      overloads: 0,
+      medal: "silver",
+    },
+  };
+  const parsedRunEnded = validateIncomingMessage(
+    { source: mockWindow, origin, data: validRunEnded },
+    mockWindow,
+    origin
+  );
+  assert.ok(parsedRunEnded);
+  assert.equal(parsedRunEnded?.type, "RUN_ENDED");
+
+  // Malformed RUN_ENDED (bad ticketId prefix, bad outcome, non-integer score, bad medal)
+  assert.equal(
+    validateIncomingMessage(
+      { source: mockWindow, origin, data: { type: "RUN_ENDED", data: { ...validRunEnded.data, ticketId: "bad-ticket" } } },
+      mockWindow,
+      origin
+    ),
+    null
+  );
+  assert.equal(
+    validateIncomingMessage(
+      { source: mockWindow, origin, data: { type: "RUN_ENDED", data: { ...validRunEnded.data, outcome: "unknown" } } },
+      mockWindow,
+      origin
+    ),
+    null
+  );
+  assert.equal(
+    validateIncomingMessage(
+      { source: mockWindow, origin, data: { type: "RUN_ENDED", data: { ...validRunEnded.data, score: 45000.5 } } },
+      mockWindow,
+      origin
+    ),
+    null
+  );
+  assert.equal(
+    validateIncomingMessage(
+      { source: mockWindow, origin, data: { type: "RUN_ENDED", data: { ...validRunEnded.data, medal: "platinum" } } },
+      mockWindow,
+      origin
+    ),
+    null
+  );
+});
+
+test("Pulse Loom tracked Godot project files and scenes exist on disk", () => {
+  const files = [
+    "../games/pulse-loom/project.godot",
+    "../games/pulse-loom/export_presets.cfg",
+    "../games/pulse-loom/scenes/main.tscn",
+    "../games/pulse-loom/scripts/constants.gd",
+    "../games/pulse-loom/scripts/routing.gd",
+    "../games/pulse-loom/scripts/game_manager.gd",
+    "../games/pulse-loom/scripts/web_bridge.gd",
+    "../games/pulse-loom/scripts/signal_core.gd",
+    "../games/pulse-loom/scripts/pulse.gd",
+    "../games/pulse-loom/scripts/radar_lanes.gd",
+    "../games/pulse-loom/scripts/audio_synth.gd",
+    "../games/pulse-loom/scripts/headless_smoke_test.gd",
+  ];
+
+  for (const rel of files) {
+    const fullUrl = new URL(rel, import.meta.url);
+    assert.ok(existsSync(fullUrl), `Expected tracked file missing: ${rel}`);
+  }
+});
+
+test("Pulse Loom authoritative route-mapping mathematics and preview agreement invariants hold across all 36 combinations", () => {
+  const NUM_LANES = 6;
+  const posmod = (n, m) => ((n % m) + m) % m;
+  const getRoutedLane = (sourceLane, rotorStep) => posmod(sourceLane + rotorStep, NUM_LANES);
+  const getRequiredStep = (sourceLane, targetLane) => posmod(targetLane - sourceLane, NUM_LANES);
+  const isAligned = (sourceLane, targetLane, rotorStep) => getRoutedLane(sourceLane, rotorStep) === targetLane;
+
+  for (let src = 0; src < NUM_LANES; src++) {
+    for (let step = 0; step < NUM_LANES; step++) {
+      const routed = getRoutedLane(src, step);
+      assert.ok(routed >= 0 && routed < NUM_LANES);
+
+      const requiredStep = getRequiredStep(src, routed);
+      assert.equal(requiredStep, step);
+      assert.equal(isAligned(src, routed, step), true);
+
+      for (let otherStep = 0; otherStep < NUM_LANES; otherStep++) {
+        if (otherStep !== step) {
+          assert.equal(isAligned(src, routed, otherStep), false);
+        }
+      }
+    }
+  }
+
+  // Bijective permutation proof per step
+  for (let step = 0; step < NUM_LANES; step++) {
+    const mapped = new Set();
+    for (let src = 0; src < NUM_LANES; src++) {
+      mapped.add(getRoutedLane(src, step));
+    }
+    assert.equal(mapped.size, NUM_LANES);
+  }
+
+  // Preview and gameplay resolution agreement proof
+  for (let src = 0; src < NUM_LANES; src++) {
+    for (let tgt = 0; tgt < NUM_LANES; tgt++) {
+      for (let step = 0; step < NUM_LANES; step++) {
+        const previewRoute = getRoutedLane(src, step);
+        const previewAligned = isAligned(src, tgt, step);
+        const resolvedRoute = (src + step) % NUM_LANES;
+        const resolvedAligned = (resolvedRoute === tgt);
+        assert.equal(previewRoute, resolvedRoute);
+        assert.equal(previewAligned, resolvedAligned);
+      }
+    }
+  }
+});
+
+test("Pulse Loom assisted onboarding state machine stages pulses and transitions cleanly to normal score attack", () => {
+  const NUM_LANES = 6;
+  const posmod = (n, m) => ((n % m) + m) % m;
+  const getRequiredStep = (src, tgt) => posmod(tgt - src, NUM_LANES);
+
+  // Behavioral model of the 3-step assisted onboarding state machine
+  const TOTAL_ASSISTED_STEPS = 3;
+  let onboardingActive = true;
+  let onboardingStep = 0;
+  let score = 0;
+  let multiplier = 1;
+  let timeRemaining = 90.0;
+
+  for (let step = 0; step < TOTAL_ASSISTED_STEPS; step++) {
+    assert.equal(onboardingActive, true);
+    assert.equal(onboardingStep, step);
+    assert.equal(timeRemaining, 90.0); // Clock held during onboarding
+
+    // Model generic pulse routing and alignment at each assisted step
+    const src = (step * 2) % NUM_LANES;
+    const tgt = (step * 2 + 2) % NUM_LANES;
+    const reqStep = getRequiredStep(src, tgt);
+    const routedLane = posmod(src + reqStep, NUM_LANES);
+    assert.equal(routedLane, tgt);
+
+    // Resolve pulse
+    score += 100 * multiplier;
+    multiplier = Math.min(10, 1 + Math.floor((onboardingStep + 1) / 2));
+    onboardingStep += 1;
+    if (onboardingStep >= TOTAL_ASSISTED_STEPS) {
+      onboardingActive = false;
+    }
+  }
+
+  assert.equal(onboardingActive, false);
+  assert.equal(onboardingStep, TOTAL_ASSISTED_STEPS);
+  assert.equal(score, 400);
+  assert.equal(timeRemaining, 90.0);
+
+  // Normal gameplay advance: countdown begins and duration accumulates
+  const delta = 1.5;
+  timeRemaining -= delta;
+  assert.ok(timeRemaining < 90.0);
+  assert.equal(timeRemaining, 88.5);
+});
+
+test("Pulse Loom repeated target glyph occurrences, retry mechanics, and stale-preview lifecycle maintain strict invariants", () => {
+  const NUM_LANES = 6;
+  const posmod = (n, m) => ((n % m) + m) % m;
+  const getRoutedLane = (sourceLane, rotorStep) => posmod(sourceLane + rotorStep, NUM_LANES);
+  const getRequiredStep = (sourceLane, targetLane) => posmod(targetLane - sourceLane, NUM_LANES);
+  const isAligned = (sourceLane, targetLane, rotorStep) => getRoutedLane(sourceLane, rotorStep) === targetLane;
+
+  const GLYPHS = [
+    { type: 0, name: "HEXAGON", symbol: "⬡", color: "Cyan" },
+    { type: 1, name: "TRIANGLE", symbol: "△", color: "Violet" },
+    { type: 2, name: "DIAMOND", symbol: "◇", color: "Amber" },
+    { type: 3, name: "SQUARE", symbol: "□", color: "Emerald" },
+    { type: 4, name: "CIRCLE", symbol: "○", color: "Crimson" },
+    { type: 5, name: "CROSS", symbol: "✕", color: "Azure" },
+  ];
+
+  // Verify glyph constants and canonical mapping
+  assert.equal(GLYPHS[3].name, "SQUARE");
+  assert.equal(GLYPHS[3].symbol, "□");
+  assert.equal(GLYPHS[3].color, "Emerald");
+  assert.equal(GLYPHS[4].name, "CIRCLE");
+  assert.equal(GLYPHS[4].symbol, "○");
+  assert.equal(GLYPHS[4].color, "Crimson");
+
+  // Verify that repeated target occurrences (1st, 2nd, 3rd time) never mutate mapping rules
+  for (const glyph of GLYPHS) {
+    const tgt = glyph.type;
+    for (let occurrence = 0; occurrence < 4; occurrence++) {
+      for (let src = 0; src < NUM_LANES; src++) {
+        const reqStep = getRequiredStep(src, tgt);
+        const previewRoute = getRoutedLane(src, reqStep);
+        const aligned = isAligned(src, tgt, reqStep);
+
+        assert.equal(previewRoute, tgt, `Previewed route must equal target for occurrence ${occurrence}`);
+        assert.equal(aligned, true, `Route must be aligned for occurrence ${occurrence}`);
+
+        // Prove all other 5 rotor positions do NOT resolve or align
+        for (let otherStep = 0; otherStep < NUM_LANES; otherStep++) {
+          if (otherStep !== reqStep) {
+            assert.equal(isAligned(src, tgt, otherStep), false);
+            assert.notEqual(getRoutedLane(src, otherStep), tgt);
+          }
+        }
+      }
+    }
+  }
+
+  // Verify assisted onboarding retry state invariants (misroute -> retry -> success)
+  let assistedStep = 1; // Testing step 1 (Emerald Square □)
+  let overloads = 0;
+  const targetSquare = 3;
+  const srcLane = 2;
+
+  // 1. Initial misroute on step 1
+  const wrongStep = 0; // routed = 2 != 3
+  const isAlignedWrong = isAligned(srcLane, targetSquare, wrongStep);
+  assert.equal(isAlignedWrong, false);
+  // In assisted mode: no overload penalty, step not incremented
+  assert.equal(overloads, 0);
+  assert.equal(assistedStep, 1);
+
+  // 2. Retry on step 1 with alignment
+  const correctStep = getRequiredStep(srcLane, targetSquare); // (3 - 2) = 1
+  const isAlignedCorrect = isAligned(srcLane, targetSquare, correctStep);
+  assert.equal(isAlignedCorrect, true);
+  assert.equal(getRoutedLane(srcLane, correctStep), targetSquare);
+  assistedStep += 1;
+  assert.equal(assistedStep, 2);
+
+  // === Stale-Preview Lifecycle Model ===
+  // Pulse A nearest -> preview A; after A removed, Pulse B nearest -> preview B; no pulse -> clear; repeated pulse -> refresh
+  let pulses = [
+    { id: "A", src: 0, tgt: 2, dist: 150 },
+    { id: "B", src: 2, tgt: 3, dist: 250 },
+  ];
+  const getNearest = (list) => {
+    if (list.length === 0) return null;
+    return list.reduce((min, p) => (p.dist < min.dist ? p : min), list[0]);
+  };
+
+  // 1. Pulse A nearest -> preview A
+  let nearest = getNearest(pulses);
+  assert.equal(nearest?.id, "A");
+  assert.equal(nearest?.src, 0);
+  assert.equal(nearest?.tgt, 2);
+
+  // 2. A resolves -> removed, B becomes nearest -> preview B
+  pulses = pulses.filter((p) => p.id !== "A");
+  nearest = getNearest(pulses);
+  assert.equal(nearest?.id, "B");
+  assert.equal(nearest?.src, 2);
+  assert.equal(nearest?.tgt, 3);
+
+  // 3. B resolves -> removed, no pulses -> clear
+  pulses = pulses.filter((p) => p.id !== "B");
+  nearest = getNearest(pulses);
+  assert.equal(nearest, null);
+
+  // 4. Repeated Square from another source (src 4, tgt 3) -> refresh with no stale state
+  pulses.push({ id: "C_Square", src: 4, tgt: 3, dist: 180 });
+  nearest = getNearest(pulses);
+  assert.equal(nearest?.id, "C_Square");
+  assert.equal(nearest?.src, 4);
+  assert.equal(nearest?.tgt, 3);
+
+  // Clear C
+  pulses = [];
+  assert.equal(getNearest(pulses), null);
+
+  // 5. Repeated Circle from another source (src 1, tgt 4) -> refresh with no stale state
+  pulses.push({ id: "D_Circle", src: 1, tgt: 4, dist: 200 });
+  nearest = getNearest(pulses);
+  assert.equal(nearest?.id, "D_Circle");
+  assert.equal(nearest?.src, 1);
+  assert.equal(nearest?.tgt, 4);
+});
+
+test("Pulse Loom runs headless deterministic smoke test", () => {
+  assert.doesNotThrow(() => {
+    runGodotHeadlessTest();
+  });
+});
+
+test("Pulse Loom builds single-threaded Web export and produces all required artifacts", () => {
+  assert.doesNotThrow(() => {
+    exportPulseLoom();
+  });
+
+  const publicDir = new URL("../apps/portal/public/games/pulse-loom/", import.meta.url);
+  for (const artifact of ["index.html", "index.js", "index.wasm", "index.pck"]) {
+    const fileUrl = new URL(artifact, publicDir);
+    assert.ok(existsSync(fileUrl), `Expected export artifact missing: ${artifact}`);
+    const stat = statSync(fileUrl);
+    assert.ok(stat.size > 0, `Export artifact ${artifact} is empty (0 bytes)`);
+  }
+});

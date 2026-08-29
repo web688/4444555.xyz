@@ -27,6 +27,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Setup Godot 4.6.3
+        run: bash scripts/setup-godot-ci.sh
       - name: Build production
         run: npm run build
       - name: Build default /test mirror
@@ -40,6 +42,14 @@ jobs:
           test -f apps/portal/dist/CNAME
           test -f apps/portal/dist/.nojekyll
           test -f apps/portal/dist/test/index.html
+          test -f apps/portal/dist/games/pulse-loom/index.html
+          test -f apps/portal/dist/games/pulse-loom/index.js
+          test -f apps/portal/dist/games/pulse-loom/index.wasm
+          test -f apps/portal/dist/games/pulse-loom/index.pck
+          test -f apps/portal/dist/test/games/pulse-loom/index.html
+          test -f apps/portal/dist/test/games/pulse-loom/index.js
+          test -f apps/portal/dist/test/games/pulse-loom/index.wasm
+          test -f apps/portal/dist/test/games/pulse-loom/index.pck
           grep -q 'src="/assets/index-' apps/portal/dist/index.html
           grep -q 'src="/test/assets/index-' apps/portal/dist/test/index.html
       - uses: actions/configure-pages@v5
