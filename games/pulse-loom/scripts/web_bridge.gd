@@ -26,10 +26,11 @@ func _setup_web_listeners() -> void:
 			if (window._pulse_loom_listener_installed) return;
 			window._pulse_loom_listener_installed = true;
 			window.addEventListener('message', function(event) {
+				if (event.origin !== window.location.origin) return;
 				if (!event.data) return;
 				try {
 					var payload = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-					if (payload && payload.type && window._godot_pulse_loom_receiver) {
+					if (payload && typeof payload === 'object' && payload.type && window._godot_pulse_loom_receiver) {
 						window._godot_pulse_loom_receiver(JSON.stringify(payload));
 					}
 				} catch(e) {
@@ -50,27 +51,30 @@ func _on_js_message_raw(args: Array) -> void:
 	handle_command(parsed)
 
 func handle_command(cmd: Dictionary) -> void:
-	var msg_type: String = cmd.get("type", "")
+	var msg_type: String = str(cmd.get("type", ""))
 	match msg_type:
 		"START":
-			var ticket: Dictionary = cmd.get("ticket", {})
-			host_start_requested.emit(ticket)
+			var ticket = cmd.get("ticket")
+			if typeof(ticket) == TYPE_DICTIONARY:
+				host_start_requested.emit(ticket)
 		"PAUSE":
 			host_pause_requested.emit()
 		"RESUME":
 			host_resume_requested.emit()
 		"RESTART":
-			var ticket: Dictionary = cmd.get("ticket", {})
-			host_restart_requested.emit(ticket)
+			var ticket = cmd.get("ticket")
+			if typeof(ticket) == TYPE_DICTIONARY:
+				host_restart_requested.emit(ticket)
 		"SET_SETTINGS", "INIT":
-			var settings: Dictionary = cmd.get("settings", {})
-			host_settings_changed.emit(settings)
+			var settings = cmd.get("settings")
+			if typeof(settings) == TYPE_DICTIONARY:
+				host_settings_changed.emit(settings)
 
 func send_to_host(msg: Dictionary) -> void:
 	if OS.has_feature("web"):
 		var json_str := JSON.stringify(msg)
 		var escaped := json_str.replace("\\", "\\\\").replace("'", "\\'")
-		JavaScriptBridge.eval("(function(){ if (window.parent && window.parent !== window) { window.parent.postMessage(JSON.parse('" + escaped + "'), '*'); } })();")
+		JavaScriptBridge.eval("(function(){ if (window.parent && window.parent !== window) { window.parent.postMessage(JSON.parse('" + escaped + "'), window.location.origin); } })();")
 
 func send_game_ready() -> void:
 	send_to_host({

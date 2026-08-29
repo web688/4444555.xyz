@@ -1,23 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { recordPulseLoomRun, type PulseLoomRunResult } from "./progress";
+import { type PulseLoomRunResult } from "./progress";
+import {
+  createPulseLoomHost,
+  sendPostMessageToGodot,
+  validateIncomingMessage,
+  type PulseLoomTelemetryData,
+} from "./host";
+import type { RunTicket, ScoreClaim, GameHost } from "@4444555/game-sdk";
 import "./pulse-loom.css";
 
 type Props = { onExit: () => void };
 
-interface PulseLoomTelemetry {
-  score: number;
-  multiplier: number;
-  maxMultiplier: number;
-  overloads: number;
-  maxOverloads: number;
-  timeRemaining: number;
-  stage: number;
-  routesCompleted: number;
-  perfectRoutes: number;
-  fps: number;
-}
-
-const initialTelemetry: PulseLoomTelemetry = {
+const initialTelemetry: PulseLoomTelemetryData = {
   score: 0,
   multiplier: 1,
   maxMultiplier: 1,
@@ -34,8 +28,11 @@ type RecordedOutcome = { run: PulseLoomRunResult; isNewBest: boolean };
 
 export default function PulseLoomGate({ onExit }: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const activeTicketRef = useRef<RunTicket | null>(null);
   const savedRunRef = useRef("");
-  const [telemetry, setTelemetry] = useState<PulseLoomTelemetry>(initialTelemetry);
+  const hostRef = useRef<GameHost | null>(null);
+
+  const [telemetry, setTelemetry] = useState<PulseLoomTelemetryData>(initialTelemetry);
   const [gameState, setGameState] = useState<"ready" | "running" | "paused" | "ended">("ready");
   const [outcome, setOutcome] = useState<RecordedOutcome | null>(null);
   const [engineReady, setEngineReady] = useState(false);
@@ -48,60 +45,108 @@ export default function PulseLoomGate({ onExit }: Props) {
     return `${normalizedBase}games/pulse-loom/index.html`;
   }, []);
 
-  const sendToGodot = (msg: Record<string, unknown>) => {
-    if (iframeRef.current?.contentWindow) {
-      iframeRef.current.contentWindow.postMessage(msg, "*");
-    }
-  };
+  useEffect(() => {
+    const reducedMotion = typeof window !== "undefined"
+      ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      : false;
+
+    hostRef.current = createPulseLoomHost({
+      muted,
+      reducedMotion,
+      onExit: (_reason) => onExit(),
+    });
+  }, [muted, onExit]);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
-    const onMessage = (event: MessageEvent) => {
-      // Validate source window to ensure same-origin / matching iframe
-      if (iframeRef.current && event.source !== iframeRef.current.contentWindow) {
-        return;
-      }
-      const data = event.data;
-      if (!data || typeof data !== "object") return;
-
-      const type = data.type;
-      if (type === "GAME_READY") {
-        setEngineReady(true);
-        sendToGodot({
-          type: "INIT",
-          settings: {
-            muted,
-            reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-          },
-        });
-      } else if (type === "STATE_CHANGE") {
-        const nextState = data.state as "ready" | "running" | "paused" | "ended";
-        if (nextState) setGameState(nextState);
-      } else if (type === "TELEMETRY") {
-        if (data.data) {
-          setTelemetry((prev) => ({ ...prev, ...data.data }));
+    // Watchdog: Surface initialization failure if engine does not report ready within 15 seconds
+    const initTimer = window.setTimeout(() => {
+      setEngineReady((ready) => {
+        if (!ready) {
+          setError("Godot engine initialization timed out. WebGL 2 or WebAssembly may be unavailable or blocked.");
         }
-      } else if (type === "RUN_ENDED") {
-        const result = data.data;
-        if (result) {
+        return ready;
+      });
+    }, 15000);
+
+    const onMessage = (event: MessageEvent) => {
+      const msg = validateIncomingMessage(event, iframeRef.current?.contentWindow ?? null);
+      if (!msg) return;
+
+      switch (msg.type) {
+        case "GAME_READY": {
+          clearTimeout(initTimer);
+          setEngineReady(true);
+          setError(null);
+          const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+          sendPostMessageToGodot(iframeRef.current?.contentWindow ?? null, {
+            type: "INIT",
+            sdkVersion: "0.1.0",
+            settings: { muted, reducedMotion },
+          });
+          break;
+        }
+
+        case "STATE_CHANGE": {
+          setGameState(msg.state);
+          break;
+        }
+
+        case "TELEMETRY": {
+          setTelemetry((prev) => ({ ...prev, ...msg.data }));
+          break;
+        }
+
+        case "RUN_ENDED": {
+          const result = msg.data;
           setGameState("ended");
           const runKey = `${result.ticketId}:${result.score}:${result.outcome}`;
           if (savedRunRef.current !== runKey) {
             savedRunRef.current = runKey;
-            const recorded = recordPulseLoomRun({
-              routeKey: "daily",
-              score: Number(result.score || 0),
-              completed: result.outcome === "complete",
-              durationSeconds: Number(result.durationSeconds || 90),
-              routesCompleted: Number(result.routesCompleted || 0),
-              perfectRoutes: Number(result.perfectRoutes || 0),
-              maxMultiplier: Number(result.maxMultiplier || 1),
-              overloads: Number(result.overloads || 0),
-            });
-            setOutcome({ run: recorded.run, isNewBest: recorded.isNewBest });
+
+            const ticket = activeTicketRef.current;
+            const claim: ScoreClaim = {
+              runTicketId: ticket ? ticket.id : result.ticketId,
+              score: result.score,
+              durationMs: result.durationSeconds * 1000,
+              endedAt: new Date().toISOString(),
+              stats: {
+                routesCompleted: result.routesCompleted,
+                perfectRoutes: result.perfectRoutes,
+                maxMultiplier: result.maxMultiplier,
+                overloads: result.overloads,
+                completed: result.outcome === "complete" ? 1 : 0,
+              },
+            };
+
+            if (hostRef.current) {
+              void hostRef.current.submitScore(claim).then((submitRes) => {
+                if (submitRes.accepted) {
+                  try {
+                    const raw = localStorage.getItem("4444555_pulse_loom_progress");
+                    if (raw) {
+                      const currentProgress = JSON.parse(raw);
+                      const lastRun = currentProgress.recentRuns?.[0];
+                      if (lastRun) {
+                        const isNewBest = lastRun.score === currentProgress.bestScore && currentProgress.totalRuns > 0;
+                        setOutcome({ run: lastRun, isNewBest });
+                      }
+                    }
+                  } catch {
+                    // Ignore storage reading errors
+                  }
+                }
+              });
+            }
           }
+          break;
+        }
+
+        case "ERROR": {
+          setError(msg.message);
+          break;
         }
       }
     };
@@ -114,6 +159,7 @@ export default function PulseLoomGate({ onExit }: Props) {
     window.addEventListener("keydown", onEscape);
 
     return () => {
+      clearTimeout(initTimer);
       window.removeEventListener("message", onMessage);
       window.removeEventListener("keydown", onEscape);
       document.body.style.overflow = previousOverflow;
@@ -122,10 +168,10 @@ export default function PulseLoomGate({ onExit }: Props) {
 
   const togglePause = () => {
     if (gameState === "paused") {
-      sendToGodot({ type: "RESUME" });
+      sendPostMessageToGodot(iframeRef.current?.contentWindow ?? null, { type: "RESUME" });
       setGameState("running");
     } else {
-      sendToGodot({ type: "PAUSE" });
+      sendPostMessageToGodot(iframeRef.current?.contentWindow ?? null, { type: "PAUSE" });
       setGameState("paused");
     }
   };
@@ -133,35 +179,36 @@ export default function PulseLoomGate({ onExit }: Props) {
   const toggleMute = () => {
     const nextMuted = !muted;
     setMuted(nextMuted);
-    sendToGodot({
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    sendPostMessageToGodot(iframeRef.current?.contentWindow ?? null, {
       type: "SET_SETTINGS",
       settings: {
         muted: nextMuted,
-        reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+        reducedMotion,
       },
     });
   };
 
-  const handleLaunch = () => {
-    const ticket = {
-      id: `run-${Date.now()}`,
-      seed: Math.floor(Math.random() * 1000000),
-      ruleset: "conduit-v1",
-    };
-    sendToGodot({ type: "START", ticket });
+  const handleLaunch = async () => {
+    if (!hostRef.current) return;
+    const ticket = await hostRef.current.requestRun();
+    activeTicketRef.current = ticket;
+    sendPostMessageToGodot(iframeRef.current?.contentWindow ?? null, { type: "START", ticket });
     setGameState("running");
   };
 
-  const handleRetry = () => {
+  const handleRetry = async () => {
     setOutcome(null);
     savedRunRef.current = "";
-    const ticket = {
-      id: `run-${Date.now()}`,
-      seed: Math.floor(Math.random() * 1000000),
-      ruleset: "conduit-v1",
-    };
-    sendToGodot({ type: "RESTART", ticket });
+    if (!hostRef.current) return;
+    const ticket = await hostRef.current.requestRun();
+    activeTicketRef.current = ticket;
+    sendPostMessageToGodot(iframeRef.current?.contentWindow ?? null, { type: "RESTART", ticket });
     setGameState("running");
+  };
+
+  const handleIframeError = () => {
+    setError("Failed to load Pulse Loom game frame.");
   };
 
   return (
@@ -172,6 +219,7 @@ export default function PulseLoomGate({ onExit }: Props) {
         src={iframeSrc}
         title="Pulse Loom Engine"
         tabIndex={0}
+        onError={handleIframeError}
       />
       <div className="pulse-loom-vignette" />
 
@@ -185,7 +233,7 @@ export default function PulseLoomGate({ onExit }: Props) {
         <div className="pulse-loom-actions">
           <button
             onClick={togglePause}
-            disabled={!engineReady || gameState === "ended" || gameState === "ready"}
+            disabled={!engineReady || !!error || gameState === "ended" || gameState === "ready"}
           >
             {gameState === "paused" ? "Resume" : "Pause"}
           </button>
@@ -235,7 +283,7 @@ export default function PulseLoomGate({ onExit }: Props) {
       </footer>
 
       {/* Ready / Briefing Modal */}
-      {gameState === "ready" && (
+      {gameState === "ready" && !error && (
         <section className="pulse-loom-state ready">
           <p>90-SECOND SIGNAL SCORE ATTACK</p>
           <h2>Pulse Loom</h2>
@@ -260,7 +308,7 @@ export default function PulseLoomGate({ onExit }: Props) {
       )}
 
       {/* Paused Modal */}
-      {gameState === "paused" && (
+      {gameState === "paused" && !error && (
         <section className="pulse-loom-state paused">
           <p>SIGNAL STREAM PAUSED</p>
           <h2>Conduit Suspended</h2>
@@ -275,7 +323,7 @@ export default function PulseLoomGate({ onExit }: Props) {
       )}
 
       {/* Mission Complete / Failed Outcome Modal */}
-      {gameState === "ended" && outcome && (
+      {gameState === "ended" && outcome && !error && (
         <section className={`pulse-loom-state result ${!outcome.run.completed ? "failed" : ""}`}>
           <p>{outcome.run.completed ? "TRANSMISSION COMPLETE" : "CRITICAL OVERLOAD FAILURE"}</p>
           <h2>{outcome.run.completed ? "Signal Secured" : "Core Overloaded"}</h2>
@@ -325,10 +373,12 @@ export default function PulseLoomGate({ onExit }: Props) {
 
       {/* Error state */}
       {error && (
-        <section className="pulse-loom-state error">
+        <section className="pulse-loom-state error" role="alert">
           <p>INITIALIZATION FAILURE</p>
           <h2>Signal Disconnected</h2>
-          <span>{error}</span>
+          <span style={{ color: "#ff6688", margin: "12px 0", maxWidth: "480px", textAlign: "center", lineHeight: "1.4" }}>
+            {error}
+          </span>
           <button onClick={onExit}>Return to Portal</button>
         </section>
       )}

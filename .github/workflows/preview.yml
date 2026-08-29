@@ -53,6 +53,7 @@ jobs:
         working-directory: candidate
         run: |
           npm ci
+          node scripts/export-pulse-loom.mjs
           npm run build --workspace @4444555/portal -- --base=/test/
 
       - name: Assemble production plus preview
@@ -71,6 +72,10 @@ jobs:
           test -f site/.nojekyll
           test -f site/test/index.html
           test -f site/test/preview.json
+          test -f site/test/games/pulse-loom/index.html
+          test -f site/test/games/pulse-loom/index.js
+          test -f site/test/games/pulse-loom/index.wasm
+          test -f site/test/games/pulse-loom/index.pck
           grep -q 'src="/assets/index-' site/index.html
           grep -q 'src="/test/assets/index-' site/test/index.html
 

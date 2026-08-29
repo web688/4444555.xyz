@@ -59,8 +59,11 @@ export function exportPulseLoom() {
     throw new Error(`Godot Web export failed with exit code ${result.status}`);
   }
 
-  if (!existsSync(outHtml) || !existsSync(resolve(outDir, "index.wasm"))) {
-    throw new Error("Godot Web export completed, but expected output files (index.html, index.wasm) are missing.");
+  const requiredFiles = ["index.html", "index.js", "index.wasm", "index.pck"];
+  for (const file of requiredFiles) {
+    if (!existsSync(resolve(outDir, file))) {
+      throw new Error(`Godot Web export completed, but expected output file '${file}' is missing from ${outDir}.`);
+    }
   }
 
   console.log("[Pulse Loom] Web export successful.");
