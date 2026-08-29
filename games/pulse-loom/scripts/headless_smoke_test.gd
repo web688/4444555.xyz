@@ -66,6 +66,12 @@ func _init() -> void:
 	else:
 		print("[PASS] test_assisted_onboarding_and_normal_play_transition")
 	
+	if not test_repeated_target_and_glyph_agreement():
+		push_error("[FAIL] test_repeated_target_and_glyph_agreement")
+		success = false
+	else:
+		print("[PASS] test_repeated_target_and_glyph_agreement")
+	
 	if not test_overload_failure():
 		push_error("[FAIL] test_overload_failure")
 		success = false
@@ -234,13 +240,13 @@ func test_assisted_onboarding_and_normal_play_transition() -> bool:
 		root.free()
 		return false
 	
-	# Step 1 (Pulse 2): Advance time to spawn pulse 2
+	# Step 1 (Pulse 2): Advance time to spawn pulse 2 (Green Square □, src 2, tgt 3)
 	root._process(0.5)
 	if root.active_pulses.size() != 1:
 		root.free()
 		return false
 	var p1 = root.active_pulses[0]
-	if p1.source_lane != 3 or p1.target_lane != 1:
+	if p1.source_lane != 2 or p1.target_lane != 3:
 		root.free()
 		return false
 	
@@ -259,13 +265,13 @@ func test_assisted_onboarding_and_normal_play_transition() -> bool:
 		root.free()
 		return false
 	
-	# Step 2 (Pulse 3): Advance time to spawn pulse 3
+	# Step 2 (Pulse 3): Advance time to spawn pulse 3 (Crimson Circle ○, src 5, tgt 4)
 	root._process(0.5)
 	if root.active_pulses.size() != 1:
 		root.free()
 		return false
 	var p2 = root.active_pulses[0]
-	if p2.source_lane != 4 or p2.target_lane != 4:
+	if p2.source_lane != 5 or p2.target_lane != 4:
 		root.free()
 		return false
 	
@@ -297,6 +303,164 @@ func test_assisted_onboarding_and_normal_play_transition() -> bool:
 		root.free()
 		return false
 	if root.current_state != GameManager.State.RUNNING:
+		root.free()
+		return false
+	
+	root.free()
+	return true
+
+func test_repeated_target_and_glyph_agreement() -> bool:
+	var main_scene = load("res://scenes/main.tscn")
+	var root: GameManager = main_scene.instantiate() as GameManager
+	root._ready()
+	root.start_run(get_valid_test_ticket("repeated-target-agreement-seed"))
+	
+	# Explicitly verify every target glyph (0..5), with strict repeated occurrence verification
+	# Target 3 (Emerald Square □) and Target 4 (Crimson Circle ○) tested repeatedly
+	for target_lane in range(PulseLoomConstants.NUM_LANES):
+		var glyph_name: String = PulseLoomConstants.GLYPH_NAMES[target_lane]
+		var glyph_sym: String = PulseLoomConstants.GLYPH_SYMBOLS[target_lane]
+		
+		# Specific checks for Square and Circle
+		if target_lane == PulseLoomConstants.GlyphType.SQUARE:
+			if glyph_name != "SQUARE" or glyph_sym != "□":
+				root.free()
+				return false
+		elif target_lane == PulseLoomConstants.GlyphType.CIRCLE:
+			if glyph_name != "CIRCLE" or glyph_sym != "○":
+				root.free()
+				return false
+		
+		# Test 3 repeated occurrences for each target glyph from various source lanes
+		for occurrence in range(3):
+			var src_lane := (target_lane + occurrence * 2 + 1) % PulseLoomConstants.NUM_LANES
+			
+			# 1. Create pulse with this target
+			var p := SignalPulse.new()
+			p.setup(src_lane, target_lane, 80.0)
+			root.active_pulses.append(p)
+			
+			# (a) Target symbol and color check
+			if p.target_lane != target_lane:
+				p.free()
+				root.free()
+				return false
+			
+			# (b) Preview state calculation and target highlight check
+			var req_step := PulseLoomRouting.get_required_step(src_lane, target_lane)
+			root.signal_core.set_step(req_step)
+			root._update_preview_state()
+			
+			if root.signal_core.active_target_lane != target_lane or root.radar_lanes.active_target_lane != target_lane:
+				p.free()
+				root.free()
+				return false
+			
+			# (c) Previewed routed destination
+			var previewed_lane := PulseLoomRouting.get_routed_lane(src_lane, req_step)
+			if previewed_lane != target_lane:
+				p.free()
+				root.free()
+				return false
+			
+			# (d) Alignment check
+			if not PulseLoomRouting.is_aligned(src_lane, target_lane, req_step):
+				p.free()
+				root.free()
+				return false
+			
+			# (e) Resolution check
+			var prev_score: int = root.score
+			var prev_routes: int = root.routes_completed
+			p.distance = PulseLoomConstants.CORE_RADIUS
+			root._resolve_pulse(p)
+			root.active_pulses.erase(p)
+			p.free()
+			
+			if root.routes_completed != prev_routes + 1:
+				root.free()
+				return false
+			if root.score <= prev_score:
+				root.free()
+				return false
+	
+	# Verify repeated misroute recovery on assisted onboarding
+	root.reset_ready()
+	root.start_run(get_valid_test_ticket("retry-regression-seed"))
+	
+	# Step 0: Resolve successfully (0 -> 2, Amber Diamond ◇)
+	root._process(0.35)
+	var p0 = root.active_pulses[0]
+	root.signal_core.set_step(PulseLoomRouting.get_required_step(p0.source_lane, p0.target_lane))
+	p0.distance = PulseLoomConstants.CORE_RADIUS
+	root.active_pulses.erase(p0)
+	root._resolve_pulse(p0)
+	p0.free()
+	if root.onboarding_step != 1:
+		root.free()
+		return false
+	
+	# Step 1: Green Square □ (src 2, tgt 3). Deliberately MISROUTE twice, then align on third attempt!
+	for fail_attempt in range(2):
+		root._process(0.55)
+		if root.active_pulses.size() != 1:
+			root.free()
+			return false
+		var p1_fail = root.active_pulses[0]
+		if p1_fail.target_lane != 3: # Emerald Square □
+			root.free()
+			return false
+		# Set intentionally misaligned rotor step
+		root.signal_core.set_step(0) # routed = 2 != 3
+		p1_fail.distance = PulseLoomConstants.CORE_RADIUS
+		root.active_pulses.erase(p1_fail)
+		root._resolve_pulse(p1_fail)
+		p1_fail.free()
+		# Must remain at step 1 with 0 overloads (safe retry)
+		if root.onboarding_step != 1 or root.overloads != 0 or not root.onboarding_active:
+			root.free()
+			return false
+	
+	# Now succeed on Step 1 (Green Square □)
+	root._process(0.55)
+	var p1_succ = root.active_pulses[0]
+	var req_step_1 := PulseLoomRouting.get_required_step(p1_succ.source_lane, p1_succ.target_lane) # (3 - 2) = 1
+	root.signal_core.set_step(req_step_1)
+	p1_succ.distance = PulseLoomConstants.CORE_RADIUS
+	root.active_pulses.erase(p1_succ)
+	root._resolve_pulse(p1_succ)
+	p1_succ.free()
+	if root.onboarding_step != 2:
+		root.free()
+		return false
+	
+	# Step 2: Crimson Circle ○ (src 5, tgt 4). Deliberately MISROUTE once, then succeed on retry!
+	root._process(0.55)
+	var p2_fail = root.active_pulses[0]
+	if p2_fail.target_lane != 4: # Crimson Circle ○
+		root.free()
+		return false
+	root.signal_core.set_step(0) # routed = 5 != 4
+	p2_fail.distance = PulseLoomConstants.CORE_RADIUS
+	root.active_pulses.erase(p2_fail)
+	root._resolve_pulse(p2_fail)
+	p2_fail.free()
+	if root.onboarding_step != 2 or root.overloads != 0 or not root.onboarding_active:
+		root.free()
+		return false
+	
+	# Now succeed on Step 2 (Crimson Circle ○)
+	root._process(0.55)
+	var p2_succ = root.active_pulses[0]
+	var req_step_2 := PulseLoomRouting.get_required_step(p2_succ.source_lane, p2_succ.target_lane) # (4 - 5) = 5
+	root.signal_core.set_step(req_step_2)
+	p2_succ.distance = PulseLoomConstants.CORE_RADIUS
+	root.active_pulses.erase(p2_succ)
+	root._resolve_pulse(p2_succ)
+	p2_succ.free()
+	
+	# Assisted onboarding complete!
+	if root.onboarding_step != 3 or root.onboarding_active:
 		root.free()
 		return false
 	

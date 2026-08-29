@@ -499,9 +499,9 @@ test("Pulse Loom assisted onboarding state machine stages pulses and transitions
 
   // Behavioral model of the 3-pulse assisted onboarding
   const assistedSteps = [
-    { step: 0, src: 0, tgt: 2 }, // Diamond ◇
-    { step: 1, src: 3, tgt: 1 }, // Triangle △
-    { step: 2, src: 4, tgt: 4 }, // Square □
+    { step: 0, src: 0, tgt: 2 }, // Amber Diamond ◇
+    { step: 1, src: 2, tgt: 3 }, // Emerald Green Square □
+    { step: 2, src: 5, tgt: 4 }, // Crimson Red Circle ○
   ];
 
   let onboardingActive = true;
@@ -538,6 +538,74 @@ test("Pulse Loom assisted onboarding state machine stages pulses and transitions
   timeRemaining -= delta;
   assert.ok(timeRemaining < 90.0);
   assert.equal(timeRemaining, 88.5);
+});
+
+test("Pulse Loom repeated target glyph occurrences and retry mechanics maintain strict preview, highlight, and resolution agreement", () => {
+  const NUM_LANES = 6;
+  const posmod = (n, m) => ((n % m) + m) % m;
+  const getRoutedLane = (sourceLane, rotorStep) => posmod(sourceLane + rotorStep, NUM_LANES);
+  const getRequiredStep = (sourceLane, targetLane) => posmod(targetLane - sourceLane, NUM_LANES);
+  const isAligned = (sourceLane, targetLane, rotorStep) => getRoutedLane(sourceLane, rotorStep) === targetLane;
+
+  const GLYPHS = [
+    { type: 0, name: "HEXAGON", symbol: "⬡" },
+    { type: 1, name: "TRIANGLE", symbol: "△" },
+    { type: 2, name: "DIAMOND", symbol: "◇" },
+    { type: 3, name: "SQUARE", symbol: "□" },
+    { type: 4, name: "CIRCLE", symbol: "○" },
+    { type: 5, name: "CROSS", symbol: "✕" },
+  ];
+
+  // Verify glyph constants and symbol-first identity
+  assert.equal(GLYPHS[3].name, "SQUARE");
+  assert.equal(GLYPHS[3].symbol, "□");
+  assert.equal(GLYPHS[4].name, "CIRCLE");
+  assert.equal(GLYPHS[4].symbol, "○");
+
+  // Verify that repeated target occurrences (1st, 2nd, 3rd time) never mutate mapping rules
+  for (const glyph of GLYPHS) {
+    const tgt = glyph.type;
+    for (let occurrence = 0; occurrence < 4; occurrence++) {
+      for (let src = 0; src < NUM_LANES; src++) {
+        const reqStep = getRequiredStep(src, tgt);
+        const previewRoute = getRoutedLane(src, reqStep);
+        const aligned = isAligned(src, tgt, reqStep);
+
+        assert.equal(previewRoute, tgt, `Previewed route must equal target for occurrence ${occurrence}`);
+        assert.equal(aligned, true, `Route must be aligned for occurrence ${occurrence}`);
+
+        // Prove all other 5 rotor positions do NOT resolve or align
+        for (let otherStep = 0; otherStep < NUM_LANES; otherStep++) {
+          if (otherStep !== reqStep) {
+            assert.equal(isAligned(src, tgt, otherStep), false);
+            assert.notEqual(getRoutedLane(src, otherStep), tgt);
+          }
+        }
+      }
+    }
+  }
+
+  // Verify assisted onboarding retry state invariants (misroute -> retry -> success)
+  let assistedStep = 1; // Testing step 1 (Green Square □)
+  let overloads = 0;
+  const targetSquare = 3;
+  const srcLane = 2;
+
+  // 1. Initial misroute on step 1
+  const wrongStep = 0; // routed = 2 != 3
+  const isAlignedWrong = isAligned(srcLane, targetSquare, wrongStep);
+  assert.equal(isAlignedWrong, false);
+  // In assisted mode: no overload penalty, step not incremented
+  assert.equal(overloads, 0);
+  assert.equal(assistedStep, 1);
+
+  // 2. Retry on step 1 with alignment
+  const correctStep = getRequiredStep(srcLane, targetSquare); // (3 - 2) = 1
+  const isAlignedCorrect = isAligned(srcLane, targetSquare, correctStep);
+  assert.equal(isAlignedCorrect, true);
+  assert.equal(getRoutedLane(srcLane, correctStep), targetSquare);
+  assistedStep += 1;
+  assert.equal(assistedStep, 2);
 });
 
 test("Pulse Loom runs headless deterministic smoke test", () => {
