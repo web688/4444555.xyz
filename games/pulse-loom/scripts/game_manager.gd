@@ -72,6 +72,9 @@ func _ready() -> void:
 	_ensure_nodes()
 	rng.seed = seed_val
 	
+	if signal_core and not signal_core.rotation_changed.is_connected(_on_core_rotation_changed):
+		signal_core.rotation_changed.connect(_on_core_rotation_changed)
+	
 	if web_bridge:
 		web_bridge.host_start_requested.connect(_on_host_start)
 		web_bridge.host_pause_requested.connect(pause_game)
@@ -80,6 +83,9 @@ func _ready() -> void:
 		web_bridge.host_settings_changed.connect(_on_host_settings)
 	
 	set_state(State.READY)
+
+func _on_core_rotation_changed(_new_step: int) -> void:
+	_update_preview_state()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("rotate_left"):
@@ -405,6 +411,8 @@ func _process_onboarding(delta: float) -> void:
 func _spawn_assisted_pulse(step: int) -> void:
 	_ensure_nodes()
 	var spec := PulseLoomConstants.get_assisted_pulse_spec(step)
+	if spec.is_empty():
+		return
 	var src_lane: int = spec["source_lane"]
 	var tgt_lane: int = spec["target_lane"]
 	var spd: float = spec["speed"]
@@ -529,7 +537,7 @@ func _resolve_pulse(pulse: SignalPulse) -> void:
 		
 		if onboarding_active:
 			onboarding_step += 1
-			if onboarding_step >= 3:
+			if onboarding_step >= PulseLoomConstants.get_assisted_pulse_count():
 				onboarding_active = false
 				spawn_timer = 1.0
 				onboarding_cue = "CALIBRATION COMPLETE · SCORE ATTACK ENGAGED!"

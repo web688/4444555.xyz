@@ -46,47 +46,40 @@ const GLYPH_SYMBOLS: Array[String] = [
 
 # Color palette with crisp contrast
 const LANE_COLORS: Array[Color] = [
-	Color(0.0, 0.94, 1.0),   # Cyan (#00f0ff) - Lane 0
-	Color(0.69, 0.40, 1.0),  # Violet (#b066ff) - Lane 1
-	Color(1.0, 0.67, 0.0),   # Amber (#ffaa00) - Lane 2
-	Color(0.0, 1.0, 0.6),    # Emerald (#00ff99) - Lane 3
-	Color(1.0, 0.20, 0.4),   # Crimson (#ff3366) - Lane 4
-	Color(0.2, 0.6, 1.0)     # Azure (#3399ff) - Lane 5
+	Color(0.0, 0.94, 1.0),   # Cyan (#00f0ff)
+	Color(0.69, 0.40, 1.0),  # Violet (#b066ff)
+	Color(1.0, 0.67, 0.0),   # Amber (#ffaa00)
+	Color(0.0, 1.0, 0.6),    # Emerald (#00ff99)
+	Color(1.0, 0.20, 0.4),   # Crimson (#ff3366)
+	Color(0.2, 0.6, 1.0)     # Azure (#3399ff)
 ]
 
-# Authoritative Assisted Onboarding 3-pulse specifications:
-# 1. Pulse 0 (Step 0): Amber Diamond ◇ (src: 0 [Cyan Hexagon], tgt: 2 [Amber Diamond], spd: 75.0, req_step: 2)
-# 2. Pulse 1 (Step 1): Emerald Green Square □ (src: 2 [Amber Diamond], tgt: 3 [Emerald Square], spd: 80.0, req_step: 1)
-# 3. Pulse 2 (Step 2): Crimson Red Circle ○ (src: 5 [Azure Cross], tgt: 4 [Crimson Circle], spd: 85.0, req_step: 5)
-const ASSISTED_PULSE_SPECS: Array[Dictionary] = [
-	{
-		"step": 0,
-		"source_lane": 0,
-		"target_lane": 2, # Diamond ◇ (Amber)
-		"speed": 75.0
-	},
-	{
-		"step": 1,
-		"source_lane": 2,
-		"target_lane": 3, # Square □ (Emerald Green)
-		"speed": 80.0
-	},
-	{
-		"step": 2,
-		"source_lane": 5,
-		"target_lane": 4, # Circle ○ (Crimson Red)
-		"speed": 85.0
-	}
+# Canonical assisted onboarding pulse sequence:
+# Step 0: 0 -> 2 (speed 75.0) -> Amber Diamond ◇
+# Step 1: 2 -> 3 (speed 80.0) -> Emerald Square □
+# Step 2: 5 -> 4 (speed 85.0) -> Crimson Circle ○
+const ASSISTED_PULSE_SEQUENCE: Array[Dictionary] = [
+	{ "source_lane": 0, "target_lane": 2, "speed": 75.0 },
+	{ "source_lane": 2, "target_lane": 3, "speed": 80.0 },
+	{ "source_lane": 5, "target_lane": 4, "speed": 85.0 }
 ]
+
+static func get_assisted_pulse_count() -> int:
+	return ASSISTED_PULSE_SEQUENCE.size()
 
 static func get_assisted_pulse_spec(step: int) -> Dictionary:
-	if step >= 0 and step < ASSISTED_PULSE_SPECS.size():
-		return ASSISTED_PULSE_SPECS[step]
+	if step < 0 or step >= ASSISTED_PULSE_SEQUENCE.size():
+		return {}
+	var base: Dictionary = ASSISTED_PULSE_SEQUENCE[step]
+	var tgt: int = base["target_lane"]
 	return {
 		"step": step,
-		"source_lane": 0,
-		"target_lane": 0,
-		"speed": 75.0
+		"source_lane": base["source_lane"],
+		"target_lane": tgt,
+		"speed": base["speed"],
+		"name": GLYPH_NAMES[tgt],
+		"symbol": GLYPH_SYMBOLS[tgt],
+		"color": LANE_COLORS[tgt]
 	}
 
 static func get_lane_angle(lane_index: int) -> float:
@@ -102,3 +95,4 @@ static func get_medal_for_score(score: int, completed: bool) -> String:
 	if score >= MEDAL_BRONZE_SCORE:
 		return "bronze"
 	return "none"
+

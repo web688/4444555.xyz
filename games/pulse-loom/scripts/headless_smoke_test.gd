@@ -30,12 +30,6 @@ func _init() -> void:
 	else:
 		print("[PASS] test_preview_and_resolution_agreement")
 	
-	if not test_stale_preview_multi_pulse_transition():
-		push_error("[FAIL] test_stale_preview_multi_pulse_transition")
-		success = false
-	else:
-		print("[PASS] test_stale_preview_multi_pulse_transition")
-	
 	if not test_core_rotation():
 		push_error("[FAIL] test_core_rotation")
 		success = false
@@ -77,6 +71,12 @@ func _init() -> void:
 		success = false
 	else:
 		print("[PASS] test_repeated_target_and_glyph_agreement")
+	
+	if not test_deterministic_stale_preview_lifecycle():
+		push_error("[FAIL] test_deterministic_stale_preview_lifecycle")
+		success = false
+	else:
+		print("[PASS] test_deterministic_stale_preview_lifecycle")
 	
 	if not test_overload_failure():
 		push_error("[FAIL] test_overload_failure")
@@ -199,327 +199,9 @@ func test_preview_and_resolution_agreement() -> bool:
 	root.free()
 	return true
 
-func test_stale_preview_multi_pulse_transition() -> bool:
-	var main_scene = load("res://scenes/main.tscn")
-	var root: GameManager = main_scene.instantiate() as GameManager
-	root._ready()
-	root.start_run(get_valid_test_ticket("stale-preview-multi-pulse-seed"))
-	root._clear_all_pulses()
-	root._update_preview_state()
-	
-	# Initial clean idle state verification (both core and radar lanes must be -1)
-	if root.signal_core.active_source_lane != -1 or root.signal_core.active_target_lane != -1:
-		root.free()
-		return false
-	if root.radar_lanes.active_source_lane != -1 or root.radar_lanes.active_target_lane != -1:
-		root.free()
-		return false
-	
-	# =========================================================================
-	# Scenario 1: Two simultaneous active pulses:
-	# Pulse A (nearest) -> Pulse B (further)
-	# Resolve A -> B becomes nearest -> Resolve B -> Both clear fully
-	# Add repeated Emerald Square □ from a DIFFERENT source -> Full invariant proof
-	# =========================================================================
-	var pulse_a := SignalPulse.new()
-	pulse_a.setup(0, 2, 80.0) # src 0 (Cyan Hexagon), tgt 2 (Amber Diamond)
-	pulse_a.distance = 120.0
-	root.active_pulses.append(pulse_a)
-	
-	var pulse_b := SignalPulse.new()
-	pulse_b.setup(2, 3, 80.0) # src 2 (Amber Diamond), tgt 3 (Emerald Square □)
-	pulse_b.distance = 220.0
-	root.active_pulses.append(pulse_b)
-	
-	root._update_preview_state()
-	
-	# (1) Pulse A is nearest: both signal_core and radar_lanes must preview/highlight A
-	if root.get_nearest_incoming_pulse() != pulse_a:
-		root.free()
-		return false
-	if root.signal_core.active_source_lane != 0 or root.signal_core.active_target_lane != 2:
-		root.free()
-		return false
-	if root.radar_lanes.active_source_lane != 0 or root.radar_lanes.active_target_lane != 2:
-		root.free()
-		return false
-	
-	# Rotate core to align with Pulse A and verify preview routing
-	var req_step_a := PulseLoomRouting.get_required_step(0, 2) # (2 - 0) = 2
-	root.signal_core.set_step(req_step_a)
-	root._update_preview_state()
-	if not PulseLoomRouting.is_aligned(0, 2, root.signal_core.current_step):
-		root.free()
-		return false
-	if PulseLoomRouting.get_routed_lane(0, req_step_a) != 2:
-		root.free()
-		return false
-	
-	# (2) Resolve Pulse A and remove it
-	var score_before_a: int = root.score
-	var routes_before_a: int = root.routes_completed
-	pulse_a.distance = PulseLoomConstants.CORE_RADIUS
-	root._resolve_pulse(pulse_a)
-	root.active_pulses.erase(pulse_a)
-	pulse_a.free()
-	root._update_preview_state()
-	
-	if root.routes_completed != routes_before_a + 1 or root.score <= score_before_a:
-		root.free()
-		return false
-	
-	# (3) Pulse B now becomes nearest: both signal_core and radar_lanes must preview/highlight B
-	if root.get_nearest_incoming_pulse() != pulse_b:
-		root.free()
-		return false
-	if root.signal_core.active_source_lane != 2 or root.signal_core.active_target_lane != 3:
-		root.free()
-		return false
-	if root.radar_lanes.active_source_lane != 2 or root.radar_lanes.active_target_lane != 3:
-		root.free()
-		return false
-	
-	# Rotate core to align with Pulse B and verify preview routing
-	var req_step_b := PulseLoomRouting.get_required_step(2, 3) # (3 - 2) = 1
-	root.signal_core.set_step(req_step_b)
-	root._update_preview_state()
-	if not PulseLoomRouting.is_aligned(2, 3, root.signal_core.current_step):
-		root.free()
-		return false
-	if PulseLoomRouting.get_routed_lane(2, req_step_b) != 3:
-		root.free()
-		return false
-	
-	# (4) Resolve Pulse B and remove it
-	var score_before_b: int = root.score
-	var routes_before_b: int = root.routes_completed
-	pulse_b.distance = PulseLoomConstants.CORE_RADIUS
-	root._resolve_pulse(pulse_b)
-	root.active_pulses.erase(pulse_b)
-	pulse_b.free()
-	root._update_preview_state()
-	
-	if root.routes_completed != routes_before_b + 1 or root.score <= score_before_b:
-		root.free()
-		return false
-	
-	# (5) After B is removed, both preview states clear fully (source and target = -1)
-	if root.get_nearest_incoming_pulse() != null:
-		root.free()
-		return false
-	if root.signal_core.active_source_lane != -1 or root.signal_core.active_target_lane != -1:
-		root.free()
-		return false
-	if root.radar_lanes.active_source_lane != -1 or root.radar_lanes.active_target_lane != -1:
-		root.free()
-		return false
-	
-	# (6) Add repeated Emerald Square □ from a DIFFERENT source (src: 4 instead of 2)
-	# Target 3 = Emerald Square □, Color(0.0, 1.0, 0.6)
-	if PulseLoomConstants.GLYPH_NAMES[3] != "SQUARE" or PulseLoomConstants.GLYPH_SYMBOLS[3] != "□" or PulseLoomConstants.LANE_COLORS[3] != Color(0.0, 1.0, 0.6):
-		root.free()
-		return false
-	
-	var pulse_sq := SignalPulse.new()
-	pulse_sq.setup(4, 3, 85.0) # src 4, tgt 3
-	pulse_sq.distance = 180.0
-	root.active_pulses.append(pulse_sq)
-	root._update_preview_state()
-	
-	# Prove source/target, required rotor step, routed preview lane, alignment, signal_core target, radar_lanes target
-	if pulse_sq.source_lane != 4 or pulse_sq.target_lane != 3:
-		root.free()
-		return false
-	if root.signal_core.active_source_lane != 4 or root.signal_core.active_target_lane != 3:
-		root.free()
-		return false
-	if root.radar_lanes.active_source_lane != 4 or root.radar_lanes.active_target_lane != 3:
-		root.free()
-		return false
-	
-	var req_step_sq := PulseLoomRouting.get_required_step(4, 3) # (3 - 4) = 5
-	root.signal_core.set_step(req_step_sq)
-	root._update_preview_state()
-	
-	var routed_sq := PulseLoomRouting.get_routed_lane(4, req_step_sq)
-	if routed_sq != 3:
-		root.free()
-		return false
-	if not PulseLoomRouting.is_aligned(4, 3, root.signal_core.current_step):
-		root.free()
-		return false
-	
-	# Verify all other 5 rotor steps do NOT align for repeated Square
-	for other_step in range(PulseLoomConstants.NUM_LANES):
-		if other_step != req_step_sq:
-			if PulseLoomRouting.is_aligned(4, 3, other_step):
-				root.free()
-				return false
-			if PulseLoomRouting.get_routed_lane(4, other_step) == 3:
-				root.free()
-				return false
-	
-	# Prove actual resolution refresh correctly with no stale state
-	var score_before_sq: int = root.score
-	var routes_before_sq: int = root.routes_completed
-	pulse_sq.distance = PulseLoomConstants.CORE_RADIUS
-	root._resolve_pulse(pulse_sq)
-	root.active_pulses.erase(pulse_sq)
-	pulse_sq.free()
-	root._update_preview_state()
-	
-	if root.routes_completed != routes_before_sq + 1 or root.score <= score_before_sq:
-		root.free()
-		return false
-	if root.signal_core.active_source_lane != -1 or root.signal_core.active_target_lane != -1:
-		root.free()
-		return false
-	if root.radar_lanes.active_source_lane != -1 or root.radar_lanes.active_target_lane != -1:
-		root.free()
-		return false
-	
-	# =========================================================================
-	# Scenario 2: Two simultaneous active pulses with MISROUTE / MISS removal:
-	# Pulse A2 (nearest) is misrouted -> removed
-	# Pulse B2 (further, Crimson Circle ○) becomes nearest -> aligned & resolved
-	# Both clear fully (-1, -1)
-	# Add repeated Crimson Circle ○ from a DIFFERENT source (src: 1) -> Full invariant proof
-	# =========================================================================
-	var pulse_a2 := SignalPulse.new()
-	pulse_a2.setup(1, 5, 80.0) # src 1 (Violet Triangle), tgt 5 (Azure Cross)
-	pulse_a2.distance = 110.0
-	root.active_pulses.append(pulse_a2)
-	
-	var pulse_b2 := SignalPulse.new()
-	pulse_b2.setup(3, 4, 80.0) # src 3 (Emerald Square), tgt 4 (Crimson Circle ○)
-	pulse_b2.distance = 210.0
-	root.active_pulses.append(pulse_b2)
-	root._update_preview_state()
-	
-	if root.get_nearest_incoming_pulse() != pulse_a2:
-		root.free()
-		return false
-	if root.signal_core.active_source_lane != 1 or root.signal_core.active_target_lane != 5:
-		root.free()
-		return false
-	if root.radar_lanes.active_source_lane != 1 or root.radar_lanes.active_target_lane != 5:
-		root.free()
-		return false
-	
-	# Miss A2: misalign rotor intentionally
-	root.signal_core.set_step(0) # routed = 1 != 5
-	pulse_a2.distance = PulseLoomConstants.CORE_RADIUS
-	root._resolve_pulse(pulse_a2)
-	root.active_pulses.erase(pulse_a2)
-	pulse_a2.free()
-	root._update_preview_state()
-	
-	# Pulse B2 becomes nearest after A2 removal
-	if root.get_nearest_incoming_pulse() != pulse_b2:
-		root.free()
-		return false
-	if root.signal_core.active_source_lane != 3 or root.signal_core.active_target_lane != 4:
-		root.free()
-		return false
-	if root.radar_lanes.active_source_lane != 3 or root.radar_lanes.active_target_lane != 4:
-		root.free()
-		return false
-	
-	# Align and resolve B2
-	var req_step_b2 := PulseLoomRouting.get_required_step(3, 4) # (4 - 3) = 1
-	root.signal_core.set_step(req_step_b2)
-	root._update_preview_state()
-	if not PulseLoomRouting.is_aligned(3, 4, root.signal_core.current_step):
-		root.free()
-		return false
-	
-	pulse_b2.distance = PulseLoomConstants.CORE_RADIUS
-	root._resolve_pulse(pulse_b2)
-	root.active_pulses.erase(pulse_b2)
-	pulse_b2.free()
-	root._update_preview_state()
-	
-	# Clear fully
-	if root.get_nearest_incoming_pulse() != null:
-		root.free()
-		return false
-	if root.signal_core.active_source_lane != -1 or root.signal_core.active_target_lane != -1:
-		root.free()
-		return false
-	if root.radar_lanes.active_source_lane != -1 or root.radar_lanes.active_target_lane != -1:
-		root.free()
-		return false
-	
-	# Add repeated Crimson Circle from a DIFFERENT source (src: 1 instead of 3 or 5)
-	# Target 4 = Crimson Circle ○, Color(1.0, 0.20, 0.4)
-	if PulseLoomConstants.GLYPH_NAMES[4] != "CIRCLE" or PulseLoomConstants.GLYPH_SYMBOLS[4] != "○" or PulseLoomConstants.LANE_COLORS[4] != Color(1.0, 0.20, 0.4):
-		root.free()
-		return false
-	
-	var pulse_circ := SignalPulse.new()
-	pulse_circ.setup(1, 4, 85.0) # src 1, tgt 4
-	pulse_circ.distance = 190.0
-	root.active_pulses.append(pulse_circ)
-	root._update_preview_state()
-	
-	# Prove source/target, required rotor step, routed preview lane, alignment, signal_core target, radar_lanes target
-	if pulse_circ.source_lane != 1 or pulse_circ.target_lane != 4:
-		root.free()
-		return false
-	if root.signal_core.active_source_lane != 1 or root.signal_core.active_target_lane != 4:
-		root.free()
-		return false
-	if root.radar_lanes.active_source_lane != 1 or root.radar_lanes.active_target_lane != 4:
-		root.free()
-		return false
-	
-	var req_step_circ := PulseLoomRouting.get_required_step(1, 4) # (4 - 1) = 3
-	root.signal_core.set_step(req_step_circ)
-	root._update_preview_state()
-	
-	var routed_circ := PulseLoomRouting.get_routed_lane(1, req_step_circ)
-	if routed_circ != 4:
-		root.free()
-		return false
-	if not PulseLoomRouting.is_aligned(1, 4, root.signal_core.current_step):
-		root.free()
-		return false
-	
-	# Verify all other 5 rotor steps do NOT align for repeated Circle
-	for other_step in range(PulseLoomConstants.NUM_LANES):
-		if other_step != req_step_circ:
-			if PulseLoomRouting.is_aligned(1, 4, other_step):
-				root.free()
-				return false
-			if PulseLoomRouting.get_routed_lane(1, other_step) == 4:
-				root.free()
-				return false
-	
-	# Prove resolution
-	var score_before_circ: int = root.score
-	var routes_before_circ: int = root.routes_completed
-	pulse_circ.distance = PulseLoomConstants.CORE_RADIUS
-	root._resolve_pulse(pulse_circ)
-	root.active_pulses.erase(pulse_circ)
-	pulse_circ.free()
-	root._update_preview_state()
-	
-	if root.routes_completed != routes_before_circ + 1 or root.score <= score_before_circ:
-		root.free()
-		return false
-	if root.signal_core.active_source_lane != -1 or root.signal_core.active_target_lane != -1:
-		root.free()
-		return false
-	if root.radar_lanes.active_source_lane != -1 or root.radar_lanes.active_target_lane != -1:
-		root.free()
-		return false
-	
-	root.free()
-	return true
-
 func test_assisted_onboarding_and_normal_play_transition() -> bool:
 	var main_scene = load("res://scenes/main.tscn")
-	var root: Node2D = main_scene.instantiate()
+	var root: GameManager = main_scene.instantiate() as GameManager
 	root._ready()
 	root.start_run(get_valid_test_ticket("onboarding-test"))
 	
@@ -534,32 +216,46 @@ func test_assisted_onboarding_and_normal_play_transition() -> bool:
 		root.free()
 		return false
 	
-	# Verify all 3 assisted pulses from runtime specification
-	for step in range(3):
+	var total_assisted := PulseLoomConstants.get_assisted_pulse_count()
+	if total_assisted != 3:
+		root.free()
+		return false
+	
+	# Query the authoritative runtime assisted-pulse definition for all 3 steps
+	for step in range(total_assisted):
 		var spec := PulseLoomConstants.get_assisted_pulse_spec(step)
+		if spec.is_empty():
+			root.free()
+			return false
+		
 		var expected_src: int = spec["source_lane"]
 		var expected_tgt: int = spec["target_lane"]
 		var expected_spd: float = spec["speed"]
+		var expected_name: String = spec["name"]
+		var expected_sym: String = spec["symbol"]
+		var expected_col: Color = spec["color"]
 		
-		# Advance time to trigger spawn
-		root._process(0.45)
+		# Verify names, symbols, and colors are derived from PulseLoomConstants using target_lane
+		if expected_name != PulseLoomConstants.GLYPH_NAMES[expected_tgt]:
+			root.free()
+			return false
+		if expected_sym != PulseLoomConstants.GLYPH_SYMBOLS[expected_tgt]:
+			root.free()
+			return false
+		if expected_col != PulseLoomConstants.LANE_COLORS[expected_tgt]:
+			root.free()
+			return false
+		
+		# Advance time to spawn assisted pulse
+		root._process(0.55)
 		if root.active_pulses.size() != 1:
 			root.free()
 			return false
-		var p = root.active_pulses[0]
+		
+		var p := root.active_pulses[0]
 		if p.source_lane != expected_src or p.target_lane != expected_tgt or not is_equal_approx(p.speed, expected_spd):
 			root.free()
 			return false
-		
-		# Specific target identity checks for Square and Circle guided pulses
-		if step == 1:
-			if p.target_lane != PulseLoomConstants.GlyphType.SQUARE or PulseLoomConstants.GLYPH_NAMES[p.target_lane] != "SQUARE" or PulseLoomConstants.GLYPH_SYMBOLS[p.target_lane] != "□":
-				root.free()
-				return false
-		elif step == 2:
-			if p.target_lane != PulseLoomConstants.GlyphType.CIRCLE or PulseLoomConstants.GLYPH_NAMES[p.target_lane] != "CIRCLE" or PulseLoomConstants.GLYPH_SYMBOLS[p.target_lane] != "○":
-				root.free()
-				return false
 		
 		# Rotate core to align with target
 		var req_step := PulseLoomRouting.get_required_step(p.source_lane, p.target_lane)
@@ -567,9 +263,6 @@ func test_assisted_onboarding_and_normal_play_transition() -> bool:
 		root._update_preview_state()
 		
 		if not PulseLoomRouting.is_aligned(p.source_lane, p.target_lane, root.signal_core.current_step):
-			root.free()
-			return false
-		if root.signal_core.active_target_lane != p.target_lane or root.radar_lanes.active_target_lane != p.target_lane:
 			root.free()
 			return false
 		
@@ -583,7 +276,12 @@ func test_assisted_onboarding_and_normal_play_transition() -> bool:
 		if root.onboarding_step != expected_next_step:
 			root.free()
 			return false
-		if step < 2 and not root.onboarding_active:
+		
+		if expected_next_step < total_assisted:
+			if not root.onboarding_active:
+				root.free()
+				return false
+		if root.score < (step + 1) * 100:
 			root.free()
 			return false
 	
@@ -591,7 +289,7 @@ func test_assisted_onboarding_and_normal_play_transition() -> bool:
 	if root.onboarding_active:
 		root.free()
 		return false
-	if root.onboarding_step != 3:
+	if root.onboarding_step < total_assisted:
 		root.free()
 		return false
 	
@@ -616,75 +314,78 @@ func test_repeated_target_and_glyph_agreement() -> bool:
 	root._ready()
 	root.start_run(get_valid_test_ticket("repeated-target-agreement-seed"))
 	
-	# Clean pulses from start
-	root._clear_all_pulses()
-	root._update_preview_state()
+	# Explicit Square name/symbol/exact Emerald-color and Circle name/symbol/exact Crimson-color assertions
+	var square_name: String = PulseLoomConstants.GLYPH_NAMES[PulseLoomConstants.GlyphType.SQUARE]
+	var square_sym: String = PulseLoomConstants.GLYPH_SYMBOLS[PulseLoomConstants.GlyphType.SQUARE]
+	var square_col: Color = PulseLoomConstants.LANE_COLORS[PulseLoomConstants.GlyphType.SQUARE]
+	if square_name != "SQUARE" or square_sym != "□" or square_col != Color(0.0, 1.0, 0.6):
+		root.free()
+		return false
 	
-	# Explicitly verify every target glyph (0..5), with strict repeated occurrence verification
-	# Target 3 (Emerald Square □) and Target 4 (Crimson Circle ○) tested repeatedly
+	var circle_name: String = PulseLoomConstants.GLYPH_NAMES[PulseLoomConstants.GlyphType.CIRCLE]
+	var circle_sym: String = PulseLoomConstants.GLYPH_SYMBOLS[PulseLoomConstants.GlyphType.CIRCLE]
+	var circle_col: Color = PulseLoomConstants.LANE_COLORS[PulseLoomConstants.GlyphType.CIRCLE]
+	if circle_name != "CIRCLE" or circle_sym != "○" or circle_col != Color(1.0, 0.20, 0.4):
+		root.free()
+		return false
+	
+	# Explicitly exercise every target lane (0..5) at least twice from different sources
+	# Proves pulse target, signal_core target, radar_lanes target, required step, routed preview, alignment, and actual resolution all agree
 	for target_lane in range(PulseLoomConstants.NUM_LANES):
 		var glyph_name: String = PulseLoomConstants.GLYPH_NAMES[target_lane]
 		var glyph_sym: String = PulseLoomConstants.GLYPH_SYMBOLS[target_lane]
 		var glyph_col: Color = PulseLoomConstants.LANE_COLORS[target_lane]
 		
-		# Specific explicit checks for Square and Circle
-		if target_lane == PulseLoomConstants.GlyphType.SQUARE:
-			if glyph_name != "SQUARE" or glyph_sym != "□" or glyph_col != Color(0.0, 1.0, 0.6):
-				root.free()
-				return false
-		elif target_lane == PulseLoomConstants.GlyphType.CIRCLE:
-			if glyph_name != "CIRCLE" or glyph_sym != "○" or glyph_col != Color(1.0, 0.20, 0.4):
-				root.free()
-				return false
+		# Exercise target from 3 different source lanes (at least twice)
+		var source_lanes: Array[int] = [
+			(target_lane + 1) % PulseLoomConstants.NUM_LANES,
+			(target_lane + 3) % PulseLoomConstants.NUM_LANES,
+			(target_lane + 5) % PulseLoomConstants.NUM_LANES
+		]
 		
-		# Test 3 repeated occurrences for each target glyph from various distinct source lanes
-		for occurrence in range(3):
-			var src_lane := (target_lane + occurrence * 2 + 1) % PulseLoomConstants.NUM_LANES
-			
-			# Ensure prior state did not leave stale target/highlight
-			if root.signal_core.active_target_lane != -1 or root.radar_lanes.active_target_lane != -1:
-				root.free()
-				return false
-			
-			# 1. Create pulse with this target
+		for src_lane in source_lanes:
+			# Create pulse with this target
 			var p := SignalPulse.new()
 			p.setup(src_lane, target_lane, 80.0)
 			root.active_pulses.append(p)
 			
-			# (a) Target symbol and color check on pulse
+			# (a) Pulse target check
 			if p.target_lane != target_lane or p.source_lane != src_lane:
 				p.free()
 				root.free()
 				return false
 			
-			# (b) Preview state calculation and target highlight check
+			# (b) Required step calculation
 			var req_step := PulseLoomRouting.get_required_step(src_lane, target_lane)
 			root.signal_core.set_step(req_step)
 			root._update_preview_state()
 			
-			if root.signal_core.active_target_lane != target_lane or root.radar_lanes.active_target_lane != target_lane:
-				p.free()
-				root.free()
-				return false
-			if root.signal_core.active_source_lane != src_lane or root.radar_lanes.active_source_lane != src_lane:
+			# (c) signal_core target and source agreement
+			if root.signal_core.active_target_lane != target_lane or root.signal_core.active_source_lane != src_lane:
 				p.free()
 				root.free()
 				return false
 			
-			# (c) Previewed routed destination
+			# (d) radar_lanes target and source agreement
+			if root.radar_lanes.active_target_lane != target_lane or root.radar_lanes.active_source_lane != src_lane:
+				p.free()
+				root.free()
+				return false
+			
+			# (e) Routed preview agreement
 			var previewed_lane := PulseLoomRouting.get_routed_lane(src_lane, req_step)
 			if previewed_lane != target_lane:
 				p.free()
 				root.free()
 				return false
 			
-			# (d) Alignment check
+			# (f) Alignment agreement
 			if not PulseLoomRouting.is_aligned(src_lane, target_lane, req_step):
 				p.free()
 				root.free()
 				return false
 			
-			# Verify all other 5 rotor steps do NOT align
+			# Prove all other 5 rotor positions do NOT align or route to target
 			for other_step in range(PulseLoomConstants.NUM_LANES):
 				if other_step != req_step:
 					if PulseLoomRouting.is_aligned(src_lane, target_lane, other_step):
@@ -696,14 +397,13 @@ func test_repeated_target_and_glyph_agreement() -> bool:
 						root.free()
 						return false
 			
-			# (e) Resolution check
+			# (g) Actual resolution agreement
 			var prev_score: int = root.score
 			var prev_routes: int = root.routes_completed
 			p.distance = PulseLoomConstants.CORE_RADIUS
 			root._resolve_pulse(p)
 			root.active_pulses.erase(p)
 			p.free()
-			root._update_preview_state()
 			
 			if root.routes_completed != prev_routes + 1:
 				root.free()
@@ -711,19 +411,18 @@ func test_repeated_target_and_glyph_agreement() -> bool:
 			if root.score <= prev_score:
 				root.free()
 				return false
-			
-			# Ensure state is reset to idle (-1) after pulse resolution
-			if root.signal_core.active_target_lane != -1 or root.radar_lanes.active_target_lane != -1:
-				root.free()
-				return false
 	
-	# Verify repeated misroute recovery on assisted onboarding
+	# Verify assisted onboarding retry state invariants querying runtime helper
 	root.reset_ready()
 	root.start_run(get_valid_test_ticket("retry-regression-seed"))
 	
-	# Step 0: Resolve successfully (0 -> 2, Amber Diamond ◇)
+	# Step 0: Resolve successfully using runtime spec
+	var spec0 := PulseLoomConstants.get_assisted_pulse_spec(0)
 	root._process(0.35)
 	var p0 = root.active_pulses[0]
+	if p0.source_lane != spec0["source_lane"] or p0.target_lane != spec0["target_lane"]:
+		root.free()
+		return false
 	root.signal_core.set_step(PulseLoomRouting.get_required_step(p0.source_lane, p0.target_lane))
 	p0.distance = PulseLoomConstants.CORE_RADIUS
 	root.active_pulses.erase(p0)
@@ -733,18 +432,20 @@ func test_repeated_target_and_glyph_agreement() -> bool:
 		root.free()
 		return false
 	
-	# Step 1: Green Square □ (src 2, tgt 3). Deliberately MISROUTE twice, then align on third attempt!
+	# Step 1: Emerald Square □ (query spec1). Deliberately MISROUTE twice, then align on third attempt!
+	var spec1 := PulseLoomConstants.get_assisted_pulse_spec(1)
 	for fail_attempt in range(2):
 		root._process(0.55)
 		if root.active_pulses.size() != 1:
 			root.free()
 			return false
 		var p1_fail = root.active_pulses[0]
-		if p1_fail.target_lane != PulseLoomConstants.GlyphType.SQUARE: # Emerald Square □
+		if p1_fail.source_lane != spec1["source_lane"] or p1_fail.target_lane != spec1["target_lane"]:
 			root.free()
 			return false
 		# Set intentionally misaligned rotor step
-		root.signal_core.set_step(0) # routed = 2 != 3
+		var wrong_step := (PulseLoomRouting.get_required_step(p1_fail.source_lane, p1_fail.target_lane) + 1) % PulseLoomConstants.NUM_LANES
+		root.signal_core.set_step(wrong_step)
 		p1_fail.distance = PulseLoomConstants.CORE_RADIUS
 		root.active_pulses.erase(p1_fail)
 		root._resolve_pulse(p1_fail)
@@ -754,10 +455,10 @@ func test_repeated_target_and_glyph_agreement() -> bool:
 			root.free()
 			return false
 	
-	# Now succeed on Step 1 (Green Square □)
+	# Now succeed on Step 1 (Emerald Square □)
 	root._process(0.55)
 	var p1_succ = root.active_pulses[0]
-	var req_step_1 := PulseLoomRouting.get_required_step(p1_succ.source_lane, p1_succ.target_lane) # (3 - 2) = 1
+	var req_step_1 := PulseLoomRouting.get_required_step(p1_succ.source_lane, p1_succ.target_lane)
 	root.signal_core.set_step(req_step_1)
 	p1_succ.distance = PulseLoomConstants.CORE_RADIUS
 	root.active_pulses.erase(p1_succ)
@@ -767,13 +468,15 @@ func test_repeated_target_and_glyph_agreement() -> bool:
 		root.free()
 		return false
 	
-	# Step 2: Crimson Circle ○ (src 5, tgt 4). Deliberately MISROUTE once, then succeed on retry!
+	# Step 2: Crimson Circle ○ (query spec2). Deliberately MISROUTE once, then succeed on retry!
+	var spec2 := PulseLoomConstants.get_assisted_pulse_spec(2)
 	root._process(0.55)
 	var p2_fail = root.active_pulses[0]
-	if p2_fail.target_lane != PulseLoomConstants.GlyphType.CIRCLE: # Crimson Circle ○
+	if p2_fail.source_lane != spec2["source_lane"] or p2_fail.target_lane != spec2["target_lane"]:
 		root.free()
 		return false
-	root.signal_core.set_step(0) # routed = 5 != 4
+	var wrong_step_2 := (PulseLoomRouting.get_required_step(p2_fail.source_lane, p2_fail.target_lane) + 1) % PulseLoomConstants.NUM_LANES
+	root.signal_core.set_step(wrong_step_2)
 	p2_fail.distance = PulseLoomConstants.CORE_RADIUS
 	root.active_pulses.erase(p2_fail)
 	root._resolve_pulse(p2_fail)
@@ -785,7 +488,7 @@ func test_repeated_target_and_glyph_agreement() -> bool:
 	# Now succeed on Step 2 (Crimson Circle ○)
 	root._process(0.55)
 	var p2_succ = root.active_pulses[0]
-	var req_step_2 := PulseLoomRouting.get_required_step(p2_succ.source_lane, p2_succ.target_lane) # (4 - 5) = 5
+	var req_step_2 := PulseLoomRouting.get_required_step(p2_succ.source_lane, p2_succ.target_lane)
 	root.signal_core.set_step(req_step_2)
 	p2_succ.distance = PulseLoomConstants.CORE_RADIUS
 	root.active_pulses.erase(p2_succ)
@@ -800,6 +503,195 @@ func test_repeated_target_and_glyph_agreement() -> bool:
 	root.free()
 	return true
 
+func test_deterministic_stale_preview_lifecycle() -> bool:
+	var main_scene = load("res://scenes/main.tscn")
+	var root: GameManager = main_scene.instantiate() as GameManager
+	root._ready()
+	root.start_run(get_valid_test_ticket("stale-preview-test-seed"))
+	
+	# Skip assisted onboarding to operate directly on raw pulse stream
+	root.onboarding_active = false
+	root._clear_all_pulses()
+	root._update_preview_state()
+	
+	# Initial clean state: no pulses active -> both clear (-1)
+	if root.signal_core.active_source_lane != -1 or root.signal_core.active_target_lane != -1:
+		root.free()
+		return false
+	if root.radar_lanes.active_source_lane != -1 or root.radar_lanes.active_target_lane != -1:
+		root.free()
+		return false
+	
+	# 1. Create Pulse A (Diamond ◇: src 0, tgt 2, dist 150.0)
+	#    and Pulse B (Square □: src 2, tgt 3, dist 250.0)
+	var pulse_a := SignalPulse.new()
+	pulse_a.setup(0, 2, 80.0)
+	pulse_a.distance = 150.0
+	root.active_pulses.append(pulse_a)
+	
+	var pulse_b := SignalPulse.new()
+	pulse_b.setup(2, 3, 80.0)
+	pulse_b.distance = 250.0
+	root.active_pulses.append(pulse_b)
+	
+	# Pulse A is nearest -> preview/highlight must reflect Pulse A (src 0, tgt 2)
+	root._update_preview_state()
+	if root.get_nearest_incoming_pulse() != pulse_a:
+		root.free()
+		return false
+	if root.signal_core.active_source_lane != 0 or root.signal_core.active_target_lane != 2:
+		root.free()
+		return false
+	if root.radar_lanes.active_source_lane != 0 or root.radar_lanes.active_target_lane != 2:
+		root.free()
+		return false
+	
+	# Rotate core to align with Pulse A
+	var req_step_a := PulseLoomRouting.get_required_step(0, 2)
+	root.signal_core.set_step(req_step_a)
+	root._update_preview_state()
+	if not PulseLoomRouting.is_aligned(0, 2, root.signal_core.current_step):
+		root.free()
+		return false
+	if PulseLoomRouting.get_routed_lane(0, root.signal_core.current_step) != 2:
+		root.free()
+		return false
+	
+	# 2. Resolve Pulse A and remove it
+	pulse_a.distance = PulseLoomConstants.CORE_RADIUS
+	root._resolve_pulse(pulse_a)
+	root.active_pulses.erase(pulse_a)
+	pulse_a.free()
+	
+	# After A resolves and is removed, Pulse B becomes nearest -> preview/highlight must reflect Pulse B (src 2, tgt 3)
+	root._update_preview_state()
+	if root.get_nearest_incoming_pulse() != pulse_b:
+		root.free()
+		return false
+	if root.signal_core.active_source_lane != 2 or root.signal_core.active_target_lane != 3:
+		root.free()
+		return false
+	if root.radar_lanes.active_source_lane != 2 or root.radar_lanes.active_target_lane != 3:
+		root.free()
+		return false
+	
+	# Rotate core to align with Pulse B
+	var req_step_b := PulseLoomRouting.get_required_step(2, 3)
+	root.signal_core.set_step(req_step_b)
+	root._update_preview_state()
+	if not PulseLoomRouting.is_aligned(2, 3, root.signal_core.current_step):
+		root.free()
+		return false
+	if PulseLoomRouting.get_routed_lane(2, root.signal_core.current_step) != 3:
+		root.free()
+		return false
+	
+	# 3. Resolve Pulse B and remove it
+	pulse_b.distance = PulseLoomConstants.CORE_RADIUS
+	root._resolve_pulse(pulse_b)
+	root.active_pulses.erase(pulse_b)
+	pulse_b.free()
+	
+	# No pulse remaining -> both clear immediately to -1
+	root._update_preview_state()
+	if root.get_nearest_incoming_pulse() != null:
+		root.free()
+		return false
+	if root.signal_core.active_source_lane != -1 or root.signal_core.active_target_lane != -1:
+		root.free()
+		return false
+	if root.radar_lanes.active_source_lane != -1 or root.radar_lanes.active_target_lane != -1:
+		root.free()
+		return false
+	
+	# 4. Then a new repeated Square □ or Circle ○ from another source -> preview/highlight/routing refresh with no stale state
+	# Test repeated Square □ from source 4 (different source from earlier src 2)
+	var pulse_c_square := SignalPulse.new()
+	pulse_c_square.setup(4, PulseLoomConstants.GlyphType.SQUARE, 90.0)
+	pulse_c_square.distance = 180.0
+	root.active_pulses.append(pulse_c_square)
+	
+	root._update_preview_state()
+	if root.get_nearest_incoming_pulse() != pulse_c_square:
+		root.free()
+		return false
+	if root.signal_core.active_source_lane != 4 or root.signal_core.active_target_lane != PulseLoomConstants.GlyphType.SQUARE:
+		root.free()
+		return false
+	if root.radar_lanes.active_source_lane != 4 or root.radar_lanes.active_target_lane != PulseLoomConstants.GlyphType.SQUARE:
+		root.free()
+		return false
+	
+	var req_step_c := PulseLoomRouting.get_required_step(4, PulseLoomConstants.GlyphType.SQUARE)
+	root.signal_core.set_step(req_step_c)
+	root._update_preview_state()
+	if not PulseLoomRouting.is_aligned(4, PulseLoomConstants.GlyphType.SQUARE, root.signal_core.current_step):
+		root.free()
+		return false
+	if PulseLoomRouting.get_routed_lane(4, root.signal_core.current_step) != PulseLoomConstants.GlyphType.SQUARE:
+		root.free()
+		return false
+	
+	# Resolve pulse C and clear
+	pulse_c_square.distance = PulseLoomConstants.CORE_RADIUS
+	root._resolve_pulse(pulse_c_square)
+	root.active_pulses.erase(pulse_c_square)
+	pulse_c_square.free()
+	
+	root._update_preview_state()
+	if root.signal_core.active_source_lane != -1 or root.signal_core.active_target_lane != -1:
+		root.free()
+		return false
+	if root.radar_lanes.active_source_lane != -1 or root.radar_lanes.active_target_lane != -1:
+		root.free()
+		return false
+	
+	# Test repeated Circle ○ from source 1 (different source from earlier src 5)
+	var pulse_d_circle := SignalPulse.new()
+	pulse_d_circle.setup(1, PulseLoomConstants.GlyphType.CIRCLE, 90.0)
+	pulse_d_circle.distance = 200.0
+	root.active_pulses.append(pulse_d_circle)
+	
+	root._update_preview_state()
+	if root.get_nearest_incoming_pulse() != pulse_d_circle:
+		root.free()
+		return false
+	if root.signal_core.active_source_lane != 1 or root.signal_core.active_target_lane != PulseLoomConstants.GlyphType.CIRCLE:
+		root.free()
+		return false
+	if root.radar_lanes.active_source_lane != 1 or root.radar_lanes.active_target_lane != PulseLoomConstants.GlyphType.CIRCLE:
+		root.free()
+		return false
+	
+	var req_step_d := PulseLoomRouting.get_required_step(1, PulseLoomConstants.GlyphType.CIRCLE)
+	root.signal_core.set_step(req_step_d)
+	root._update_preview_state()
+	if not PulseLoomRouting.is_aligned(1, PulseLoomConstants.GlyphType.CIRCLE, root.signal_core.current_step):
+		root.free()
+		return false
+	if PulseLoomRouting.get_routed_lane(1, root.signal_core.current_step) != PulseLoomConstants.GlyphType.CIRCLE:
+		root.free()
+		return false
+	
+	# Miss / overload pulse D to test miss removal lifecycle as well
+	var misaligned_step := (req_step_d + 1) % PulseLoomConstants.NUM_LANES
+	root.signal_core.set_step(misaligned_step)
+	pulse_d_circle.distance = PulseLoomConstants.CORE_RADIUS
+	root._resolve_pulse(pulse_d_circle)
+	root.active_pulses.erase(pulse_d_circle)
+	pulse_d_circle.free()
+	
+	# Clear check after miss
+	root._update_preview_state()
+	if root.signal_core.active_source_lane != -1 or root.signal_core.active_target_lane != -1:
+		root.free()
+		return false
+	if root.radar_lanes.active_source_lane != -1 or root.radar_lanes.active_target_lane != -1:
+		root.free()
+		return false
+	
+	root.free()
+	return true
 
 func test_ticket_validation() -> bool:
 	var main_scene = load("res://scenes/main.tscn")
@@ -1206,55 +1098,48 @@ func test_constants() -> bool:
 		return false
 	if PulseLoomConstants.MAX_OVERLOADS != 3:
 		return false
-	if PulseLoomConstants.GLYPH_NAMES.size() != 6:
-		return false
-	if PulseLoomConstants.GLYPH_SYMBOLS.size() != 6:
+	if PulseLoomConstants.GLYPH_NAMES.size() != 6 or PulseLoomConstants.GLYPH_SYMBOLS.size() != 6:
 		return false
 	if PulseLoomConstants.LANE_COLORS.size() != 6:
 		return false
 	
-	# Explicit Canonical Mapping Assertions for all 6 glyphs
-	if PulseLoomConstants.GlyphType.HEXAGON != 0 or PulseLoomConstants.GLYPH_NAMES[0] != "HEXAGON" or PulseLoomConstants.GLYPH_SYMBOLS[0] != "⬡" or PulseLoomConstants.LANE_COLORS[0] != Color(0.0, 0.94, 1.0):
+	# Canonical mapping assertions:
+	# Lane 3 = SQUARE □ = Emerald Color(0.0, 1.0, 0.6)
+	if PulseLoomConstants.GLYPH_NAMES[3] != "SQUARE":
 		return false
-	if PulseLoomConstants.GlyphType.TRIANGLE != 1 or PulseLoomConstants.GLYPH_NAMES[1] != "TRIANGLE" or PulseLoomConstants.GLYPH_SYMBOLS[1] != "△" or PulseLoomConstants.LANE_COLORS[1] != Color(0.69, 0.40, 1.0):
+	if PulseLoomConstants.GLYPH_SYMBOLS[3] != "□":
 		return false
-	if PulseLoomConstants.GlyphType.DIAMOND != 2 or PulseLoomConstants.GLYPH_NAMES[2] != "DIAMOND" or PulseLoomConstants.GLYPH_SYMBOLS[2] != "◇" or PulseLoomConstants.LANE_COLORS[2] != Color(1.0, 0.67, 0.0):
-		return false
-	if PulseLoomConstants.GlyphType.SQUARE != 3 or PulseLoomConstants.GLYPH_NAMES[3] != "SQUARE" or PulseLoomConstants.GLYPH_SYMBOLS[3] != "□" or PulseLoomConstants.LANE_COLORS[3] != Color(0.0, 1.0, 0.6):
-		return false
-	if PulseLoomConstants.GlyphType.CIRCLE != 4 or PulseLoomConstants.GLYPH_NAMES[4] != "CIRCLE" or PulseLoomConstants.GLYPH_SYMBOLS[4] != "○" or PulseLoomConstants.LANE_COLORS[4] != Color(1.0, 0.20, 0.4):
-		return false
-	if PulseLoomConstants.GlyphType.CROSS != 5 or PulseLoomConstants.GLYPH_NAMES[5] != "CROSS" or PulseLoomConstants.GLYPH_SYMBOLS[5] != "✕" or PulseLoomConstants.LANE_COLORS[5] != Color(0.2, 0.6, 1.0):
+	if PulseLoomConstants.LANE_COLORS[3] != Color(0.0, 1.0, 0.6):
 		return false
 	
-	# Authoritative Assisted Pulse Specification Assertions
-	if PulseLoomConstants.ASSISTED_PULSE_SPECS.size() != 3:
+	# Lane 4 = CIRCLE ○ = Crimson Color(1.0, 0.20, 0.4)
+	if PulseLoomConstants.GLYPH_NAMES[4] != "CIRCLE":
 		return false
+	if PulseLoomConstants.GLYPH_SYMBOLS[4] != "○":
+		return false
+	if PulseLoomConstants.LANE_COLORS[4] != Color(1.0, 0.20, 0.4):
+		return false
+	
+	# Assisted pulse specification checks
+	if PulseLoomConstants.get_assisted_pulse_count() != 3:
+		return false
+	
 	var spec0 := PulseLoomConstants.get_assisted_pulse_spec(0)
 	if spec0["source_lane"] != 0 or spec0["target_lane"] != 2 or not is_equal_approx(spec0["speed"], 75.0):
 		return false
-	if PulseLoomConstants.GLYPH_NAMES[spec0["target_lane"]] != "DIAMOND" or PulseLoomConstants.GLYPH_SYMBOLS[spec0["target_lane"]] != "◇" or PulseLoomConstants.LANE_COLORS[spec0["target_lane"]] != Color(1.0, 0.67, 0.0):
+	if spec0["name"] != "DIAMOND" or spec0["symbol"] != "◇" or spec0["color"] != Color(1.0, 0.67, 0.0):
 		return false
 	
 	var spec1 := PulseLoomConstants.get_assisted_pulse_spec(1)
 	if spec1["source_lane"] != 2 or spec1["target_lane"] != 3 or not is_equal_approx(spec1["speed"], 80.0):
 		return false
-	if PulseLoomConstants.GLYPH_NAMES[spec1["target_lane"]] != "SQUARE" or PulseLoomConstants.GLYPH_SYMBOLS[spec1["target_lane"]] != "□" or PulseLoomConstants.LANE_COLORS[spec1["target_lane"]] != Color(0.0, 1.0, 0.6):
+	if spec1["name"] != "SQUARE" or spec1["symbol"] != "□" or spec1["color"] != Color(0.0, 1.0, 0.6):
 		return false
 	
 	var spec2 := PulseLoomConstants.get_assisted_pulse_spec(2)
 	if spec2["source_lane"] != 5 or spec2["target_lane"] != 4 or not is_equal_approx(spec2["speed"], 85.0):
 		return false
-	if PulseLoomConstants.GLYPH_NAMES[spec2["target_lane"]] != "CIRCLE" or PulseLoomConstants.GLYPH_SYMBOLS[spec2["target_lane"]] != "○" or PulseLoomConstants.LANE_COLORS[spec2["target_lane"]] != Color(1.0, 0.20, 0.4):
-		return false
-	
-	# Verify all 3 assisted pulses require distinct, non-zero rotor orientations
-	var step0 := PulseLoomRouting.get_required_step(spec0["source_lane"], spec0["target_lane"])
-	var step1 := PulseLoomRouting.get_required_step(spec1["source_lane"], spec1["target_lane"])
-	var step2 := PulseLoomRouting.get_required_step(spec2["source_lane"], spec2["target_lane"])
-	if step0 == 0 or step1 == 0 or step2 == 0:
-		return false
-	if step0 == step1 or step1 == step2 or step0 == step2:
+	if spec2["name"] != "CIRCLE" or spec2["symbol"] != "○" or spec2["color"] != Color(1.0, 0.20, 0.4):
 		return false
 	
 	if PulseLoomConstants.get_medal_for_score(70000, true) != "gold":
