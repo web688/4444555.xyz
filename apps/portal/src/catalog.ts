@@ -37,6 +37,18 @@ export const games: Game[] = [
     playable: true
   },
   {
+    slug: "pulse-loom",
+    eyebrow: "Featured / Production Flight 03",
+    title: "Pulse Loom",
+    description: "Align the central signal conduit to route incoming glyph pulses across six radial lanes in a 90-second score attack.",
+    genre: "Signal routing",
+    session: "90s",
+    mode: "production",
+    accent: "cyan",
+    tags: ["Godot 4.6", "Score attack", "Deterministic"],
+    playable: true
+  },
+  {
     slug: "echo-vector",
     eyebrow: "Concept 02",
     title: "Echo Vector",

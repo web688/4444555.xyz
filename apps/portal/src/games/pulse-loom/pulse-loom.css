@@ -1,0 +1,453 @@
+.pulse-loom-gate {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  overflow: hidden;
+  background: #05070d;
+  color: #f4f4f0;
+  isolation: isolate;
+  font-family: "Manrope", sans-serif;
+}
+
+.pulse-loom-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+  touch-action: none;
+  outline: 0;
+  background: #04060c;
+}
+
+.pulse-loom-vignette {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(2, 4, 10, 0.4), transparent 18% 82%, rgba(2, 4, 10, 0.35)),
+    linear-gradient(rgba(2, 4, 10, 0.3), transparent 22% 78%, rgba(2, 4, 10, 0.5));
+  box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.45);
+}
+
+.pulse-loom-hud {
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 28px;
+}
+
+.pulse-loom-hud.top {
+  top: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(rgba(2, 4, 11, 0.88), rgba(2, 4, 11, 0.1));
+  backdrop-filter: blur(8px);
+}
+
+.pulse-loom-identity {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 2px;
+  font: 500 10px "DM Mono", monospace;
+  letter-spacing: 0.14em;
+}
+
+.pulse-loom-identity small {
+  grid-column: 2;
+  color: #787d89;
+  font-size: 7px;
+}
+
+.pulse-loom-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00f0ff;
+  box-shadow: 0 0 14px #00f0ff;
+  animation: pulse-loom-pulse 1.8s ease-in-out infinite;
+}
+
+.pulse-loom-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pulse-loom-actions button,
+.pulse-loom-state button {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(3, 5, 12, 0.65);
+  backdrop-filter: blur(12px);
+  color: #c7cad2;
+  padding: 8px 12px;
+  font: 500 8px "DM Mono", monospace;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+
+.pulse-loom-actions button:hover,
+.pulse-loom-state button:hover {
+  border-color: rgba(255, 255, 255, 0.6);
+  color: #ffffff;
+}
+
+.pulse-loom-actions .pulse-loom-close {
+  font: 300 20px/1 "Manrope", sans-serif;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.pulse-loom-score {
+  position: absolute;
+  z-index: 3;
+  top: 100px;
+  left: 28px;
+  display: grid;
+}
+
+.pulse-loom-score small,
+.pulse-loom-telemetry small {
+  font: 500 7px "DM Mono", monospace;
+  letter-spacing: 0.15em;
+  color: #858a96;
+  text-transform: uppercase;
+}
+
+.pulse-loom-score strong {
+  font: 600 clamp(28px, 3.2vw, 50px)/1 "DM Mono", monospace;
+  letter-spacing: -0.06em;
+  text-shadow: 0 0 25px rgba(0, 240, 255, 0.25);
+}
+
+.pulse-loom-score span {
+  width: max-content;
+  margin-top: 6px;
+  padding: 4px 8px;
+  border-left: 1px solid #00f0ff;
+  background: linear-gradient(90deg, rgba(0, 240, 255, 0.1), transparent);
+  font: 500 8px "DM Mono", monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #00f0ff;
+}
+
+.pulse-loom-telemetry {
+  position: absolute;
+  z-index: 3;
+  right: 28px;
+  top: 100px;
+  text-align: right;
+  display: grid;
+  gap: 12px;
+}
+
+.pulse-loom-time-card strong {
+  font: 500 26px/1 "DM Mono", monospace;
+  letter-spacing: -0.05em;
+}
+
+.pulse-loom-time-card span {
+  font: 500 7px "DM Mono", monospace;
+  color: #707581;
+  margin-left: 4px;
+}
+
+.pulse-loom-overload-bar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 5px;
+}
+
+.pulse-loom-overload-bar small {
+  margin-right: 6px;
+}
+
+.pulse-loom-overload-bar i {
+  display: block;
+  width: 18px;
+  height: 6px;
+  background: #1c2230;
+  transform: skewX(-20deg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.pulse-loom-overload-bar i.active {
+  background: #ff3366;
+  border-color: #ff3366;
+  box-shadow: 0 0 10px rgba(255, 51, 102, 0.7);
+}
+
+.pulse-loom-bottom-bar {
+  position: absolute;
+  z-index: 3;
+  left: 28px;
+  right: 28px;
+  bottom: 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font: 400 7px "DM Mono", monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #666c78;
+}
+
+.pulse-loom-bottom-bar span {
+  color: #bfc4ce;
+}
+
+.pulse-loom-bottom-bar b {
+  padding: 0 6px;
+  color: #3c414c;
+}
+
+.pulse-loom-stage-progress {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.pulse-loom-stage-progress i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  display: grid;
+  place-content: center;
+  font: 500 6px "DM Mono", monospace;
+  color: #666c78;
+}
+
+.pulse-loom-stage-progress i.current {
+  border-color: #00f0ff;
+  color: #00f0ff;
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+}
+
+.pulse-loom-stage-progress i.passed {
+  background: #00f0ff;
+  border-color: #00f0ff;
+  color: #05060b;
+}
+
+.pulse-loom-state {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  background: rgba(1, 3, 9, 0.76);
+  backdrop-filter: blur(14px);
+  padding: 24px;
+}
+
+.pulse-loom-state p {
+  margin: 0 0 10px;
+  font: 500 8px "DM Mono", monospace;
+  letter-spacing: 0.2em;
+  color: #00f0ff;
+  text-transform: uppercase;
+}
+
+.pulse-loom-state h2 {
+  font-size: clamp(34px, 4.5vw, 68px);
+  letter-spacing: -0.05em;
+  margin: 0 0 24px;
+}
+
+.pulse-loom-state button {
+  justify-self: center;
+  background: #edf0ed;
+  color: #07090d;
+  border-color: #edf0ed;
+  padding: 13px 20px;
+  font-weight: 700;
+}
+
+.pulse-loom-state button.secondary {
+  margin-top: 8px;
+  background: transparent;
+  color: #b8bdc7;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.pulse-loom-briefing {
+  display: flex !important;
+  gap: 1px;
+  margin: 0 auto 26px !important;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.pulse-loom-briefing span {
+  display: grid;
+  gap: 5px;
+  min-width: 170px;
+  padding: 14px 16px;
+  background: rgba(4, 8, 17, 0.92);
+  font: 400 7px "DM Mono", monospace;
+  letter-spacing: 0.08em;
+  color: #777f8d;
+  text-transform: uppercase;
+}
+
+.pulse-loom-briefing b {
+  font-size: 11px;
+  color: #f0f2ee;
+}
+
+.pulse-loom-state.result {
+  overflow-y: auto;
+  align-content: start;
+  justify-content: center;
+  padding: 60px 20px 30px;
+}
+
+.pulse-loom-state.result.failed {
+  background: radial-gradient(circle at 50% 42%, rgba(140, 32, 18, 0.26), transparent 35%),
+    rgba(1, 3, 9, 0.82);
+}
+
+.pulse-loom-medal {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 auto 14px !important;
+  color: #8b919d;
+  font: 500 8px "DM Mono", monospace;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.pulse-loom-medal i {
+  width: 10px;
+  height: 10px;
+  transform: rotate(45deg);
+  border: 1px solid currentColor;
+}
+
+.pulse-loom-medal.bronze {
+  color: #c88761;
+}
+
+.pulse-loom-medal.silver {
+  color: #c7d0d8;
+}
+
+.pulse-loom-medal.gold {
+  color: #f6bd52;
+  text-shadow: 0 0 18px rgba(246, 189, 82, 0.45);
+}
+
+.pulse-loom-run-stats {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(85px, 1fr));
+  gap: 1px;
+  width: min(580px, calc(100vw - 36px));
+  margin: 0 auto 20px !important;
+  background: rgba(255, 255, 255, 0.11);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+}
+
+.pulse-loom-run-stats > span {
+  display: grid;
+  gap: 5px;
+  padding: 12px 14px;
+  background: rgba(4, 8, 17, 0.92);
+}
+
+.pulse-loom-run-stats small {
+  font: 500 6px "DM Mono", monospace;
+  letter-spacing: 0.11em;
+  color: #707785;
+  text-transform: uppercase;
+}
+
+.pulse-loom-run-stats strong {
+  font: 500 13px "DM Mono", monospace;
+  color: #f1f3ef;
+}
+
+.pulse-loom-touch-controls {
+  position: absolute;
+  z-index: 4;
+  left: 24px;
+  right: 24px;
+  bottom: 50px;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.pulse-loom-touch-controls button {
+  pointer-events: auto;
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  background: rgba(4, 8, 17, 0.75);
+  color: #00f0ff;
+  font: 600 16px "DM Mono", monospace;
+  padding: 16px 28px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.pulse-loom-touch-controls button:active {
+  background: rgba(0, 240, 255, 0.3);
+  border-color: #00f0ff;
+}
+
+@keyframes pulse-loom-pulse {
+  50% {
+    opacity: 0.35;
+    transform: scale(0.75);
+  }
+}
+
+@media (max-width: 750px) {
+  .pulse-loom-hud {
+    padding: 14px;
+  }
+  .pulse-loom-score {
+    left: 14px;
+    top: 72px;
+  }
+  .pulse-loom-telemetry {
+    right: 14px;
+    top: 72px;
+  }
+  .pulse-loom-score strong {
+    font-size: 26px;
+  }
+  .pulse-loom-time-card strong {
+    font-size: 22px;
+  }
+  .pulse-loom-briefing {
+    display: grid !important;
+    width: calc(100vw - 32px);
+  }
+  .pulse-loom-briefing span {
+    min-width: 0;
+    padding: 10px 12px;
+  }
+  .pulse-loom-run-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: calc(100vw - 28px);
+  }
+  .pulse-loom-bottom-bar {
+    left: 14px;
+    right: 14px;
+    bottom: 12px;
+  }
+}

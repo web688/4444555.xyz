@@ -1,0 +1,22 @@
+{
+  "$schema": "../schema/game-manifest.schema.json",
+  "id": "pulse-loom",
+  "version": "0.1.0",
+  "sdk": "0.1.0",
+  "status": "prototype",
+  "title": "Pulse Loom",
+  "summary": "Align the central signal conduit to route incoming glyph pulses across six radial lanes in a 90-second score attack.",
+  "engine": { "name": "Godot", "version": "4.6.3", "rendering": "gl_compatibility" },
+  "entry": "/src/games/pulse-loom/PulseLoomGate.tsx",
+  "presentation": { "orientation": "landscape", "aspectRatio": "16:9", "accent": "#00f0ff" },
+  "input": ["keyboard", "touch", "gamepad"],
+  "sessions": { "minimumSeconds": 30, "targetSeconds": 90, "maximumSeconds": 120 },
+  "assets": { "initialBytes": 524288, "totalBytes": 41943040 },
+  "scores": { "mode": "higher-is-better", "ruleset": "conduit-v1", "validation": "local-deterministic-route" },
+  "achievements": [
+    { "id": "first-transmission", "title": "Signal Synchronized", "target": 1 },
+    { "id": "multiplier-x6", "title": "Harmonic Resonance", "target": 6 },
+    { "id": "flawless-pulse", "title": "Full Spectrum Loom", "target": 90 }
+  ],
+  "save": { "schemaVersion": 1, "maximumBytes": 65536 }
+}

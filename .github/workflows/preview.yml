@@ -40,6 +40,9 @@ jobs:
         with:
           node-version: 22
 
+      - name: Setup Godot 4.6.3
+        run: bash candidate/scripts/setup-godot-ci.sh
+
       - name: Build accepted production
         working-directory: production
         run: |

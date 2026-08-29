@@ -11,3 +11,13 @@ GIT_Token.txt
 all connection info.txt
 *.zip
 
+# AI Factory internal session state
+.ai-factory/
+
+# Godot generated files & caches
+.godot/
+games/**/.godot/
+games/**/export/
+apps/portal/public/games/
+
+
